@@ -1,10 +1,6 @@
-import React, { useEffect } from 'react';
-import ManualTester from './components/ManualTester';
 
-import './App.scss';
-import { parseGpt } from '@testing-repo/gpt-compiler';
-
-const test = String.raw`
+// Hierarchia, mindkét feature-ben kell a VIP
+// Feature 1: Price calculation
 [
   var VIP: bool 
   var price: num
@@ -61,23 +57,36 @@ const test = String.raw`
     if(VIP = true && shipping = true)
   ]
 ]
-`;
+// Feature 2: Credit card charging
+[
+  var has_credit_card: bool
+  var credit_card_balance: int
+  if(has_credit_card = true && credit_card_balance >= 10)
+]
 
-function App() {
-  useEffect(() => {
-    console.log(parseGpt(test));
-  }, []);
-  return (
-    <>
-      <a
-        href="https://test-design.org/practical-exercises/"
-        className="backLink"
-      >
-        Back to Test Design Exercises
-      </a>
-      <ManualTester />
-    </>
-  );
-}
 
-export default App;
+var a: int
+var b: int
+var c: int
+var d: int
+
+[(a)
+  if(a > 10)
+]
+[(b)
+  if (b < 20)
+]
+[(a,b)
+  if(a != 0 && b != 0)
+]
+
+[(c)
+  if(c > 10)
+]
+[(d)
+  if (d < 20)
+]
+
+[(a,b,c,d)
+  if(a != 0 && b != 0)
+]
