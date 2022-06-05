@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { runMONKE, generateGraph } from '@testing-repo/gpt-algorithm';
 import { Graph } from '@testing-repo/gpt-common';
-import { parseInput, Variable } from '@testing-repo/gpt-compiler';
+import {
+  parseGptToNTuples,
+  parseInput,
+  Variable,
+} from '@testing-repo/gpt-compiler';
 
 import './ManualTester.scss';
 import TestCaseTable from './TestCaseTable';
@@ -13,7 +17,12 @@ interface GeneratedState {
 }
 
 const generateState = (input: string) => {
-  const [variables, testCases] = parseInput(input);
+  // const [variables, testCases] = parseInput(input);
+
+  const [variables, nTuples] = parseGptToNTuples(input);
+  const testCases = nTuples.map((x) => x.list);
+
+  console.log(variables, testCases);
 
   const originalGraph = generateGraph(testCases);
   const graph = runMONKE(originalGraph);
@@ -26,15 +35,33 @@ const generateState = (input: string) => {
 
 const ManualTester = () => {
   const [input, setInput] = useState(
-    `
-// This is a comment. It is editable.
+    // `
+    // // This is a comment. It is editable.
 
-VIP(bool); price(num); second_hand_price(num)
-true;   <50; *
-false; >=50; *
-true;  >=50; *
-*;      >30; >60
-  `.trim(),
+    // VIP(bool); price(num); second_hand_price(num)
+    // true;   <50; *
+    // false; >=50; *
+    // true;  >=50; *
+    // *;      >30; >60
+    //   `.trim(),
+
+    String.raw`
+    [
+
+    var VIP: bool
+    var price: num
+    var second_hand_price: num
+
+    if(VIP = true &&  price <50) {
+      if(second_hand_price = 2)
+      if(second_hand_price = 3)
+    }
+    if(VIP = false &&  price >=50)
+    if(VIP = true &&  price >=50)
+    if(price >30 && second_hand_price >60)
+
+    ]
+    `.trim(),
   );
 
   const [generatedState, setGeneratedState] = useState<

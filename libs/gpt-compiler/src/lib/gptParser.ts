@@ -1,99 +1,27 @@
-import { IntervalDTO, IsOpen } from '@testing-repo/gpt-common';
+import { IntervalDTO, IsOpen, NTuple } from '@testing-repo/gpt-common';
 import { Interval } from 'interval-arithmetic';
 import ohm from 'ohm-js';
-import ohmExtras from 'ohm-js/extras';
-import { SuperProperty } from 'typescript';
-
-class VarType {}
-class BoolType extends VarType {}
-class NumType implements VarType {
-  constructor(public precision: number) {}
-
-  static integer() {
-    return new NumType(1);
-  }
-}
-
-class FeatureNode {
-  constructor(
-    public variables: VarNode[],
-    public ifStatements: IfNode[],
-    public features: FeatureNode[],
-  ) {}
-}
-
-class VarNode {
-  constructor(public varName: string, public varType: VarType) {}
-}
-
-class IfNode {
-  constructor(
-    public conditions: ConditionsNode,
-    public body: IfNode[],
-    public elseIf: ElseIfNode[],
-    public elseNode?: ElseNode,
-  ) {}
-}
-
-class ElseIfNode {
-  constructor(public conditions: ConditionsNode, public body: IfNode[]) {}
-}
-
-class ElseNode {
-  constructor(public body: IfNode[]) {}
-}
-
-class ConditionsNode {
-  constructor(public conditions: Condition[]) {}
-}
-
-type EqOp = '=' | '!=';
-type BinaryOp = '<=' | '>=' | '!=' | '<' | '>' | '=';
-type IntervalOp = 'in' | 'not in';
-
-class Condition {}
-class BoolCondition extends Condition {
-  constructor(
-    public varName: string,
-    public eqOp: EqOp,
-    public boolVal: boolean,
-  ) {
-    super();
-  }
-}
-
-class BinaryCondition extends Condition {
-  constructor(
-    public constantPosition: 'lhs' | 'rhs',
-    public constant: number,
-    public binaryOp: BinaryOp,
-    public varName: string,
-  ) {
-    super();
-  }
-}
-
-class IntervalCondition extends Condition {
-  constructor(
-    public varName: string,
-    public intervalOp: IntervalOp,
-    public interval: IntervalWithOpenness,
-  ) {
-    super();
-  }
-}
-
-class IntervalWithOpenness {
-  constructor(public interval: Interval, public isOpen: IsOpen) {}
-}
-
-type ASTNode =
-  | FeatureNode
-  | VarNode
-  | IfNode
-  | ElseIfNode
-  | ElseNode
-  | ConditionsNode;
+import {
+  ASTNode,
+  BinaryCondition,
+  BinaryOp,
+  BoolCondition,
+  BoolType,
+  Condition,
+  ConditionsNode,
+  ElseIfNode,
+  ElseNode,
+  EqOp,
+  FeatureNode,
+  IfNode,
+  IntervalCondition,
+  IntervalOp,
+  IntervalWithOpenness,
+  NumType,
+  VarNode,
+} from './AST';
+import { traverseAST } from './gptASTNodeConverter';
+import { Variable } from './plaintextParser';
 
 const gptGrammar = ohm.grammar(String.raw`
 Gpt {
@@ -120,9 +48,9 @@ Gpt {
 
   bool = "true" | "false"
   eqOp = "=" | "!="
-  intervalOp = "in" | "not in"
+  intervalOp = "in"         // | "not in"
   binaryOp = "<=" |  ">=" | "!=" | "<" | ">" | "="
-  boolOp = "&&" | "||"
+  boolOp = "&&"             // | "||"
 
   posNumber = digit+ ("." digit+)?
   number = posNumber -- pos
@@ -193,9 +121,9 @@ const gptSemantics = gptGrammar
     ): IfNode {
       return new IfNode(
         conditions['toAST'](),
-        body.children.map((node) => node['toAST']()),
+        body.children.map((node) => node['toAST']())[0],
         elseIfs.children.map((node) => node['toAST']()),
-        elseNode.children[0]?.['toAST'](),
+        elseNode?.children[0]?.['toAST'](),
       );
     },
     ElseIf(
@@ -210,7 +138,7 @@ const gptSemantics = gptGrammar
     ): ElseIfNode {
       return new ElseIfNode(
         conditions['toAST'](),
-        body.children.map((node) => node['toAST']()),
+        body.children.map((node) => node['toAST']())[0],
       );
     },
     Else(_else, _lBrace, body, _rBrace): ElseNode {
@@ -286,4 +214,8 @@ export const parseGpt = (text: string) => {
   } else {
     throw new Error(match.message);
   }
+};
+
+export const parseGptToNTuples = (text: string): [Variable[], NTuple[]] => {
+  return traverseAST(parseGpt(text));
 };

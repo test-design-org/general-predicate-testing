@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import ManualTester from './components/ManualTester';
 
 import './App.scss';
-import { parseGpt } from '@testing-repo/gpt-compiler';
+import { parseGpt, traverseAST } from '@testing-repo/gpt-compiler';
 
 const test = String.raw`
 [
@@ -63,9 +63,29 @@ const test = String.raw`
 ]
 `;
 
+const test2 = String.raw`
+[
+
+  var VIP: bool
+  var price: num
+  var second_hand_price: num
+
+  if(VIP = true &&  price <50) {
+    if(second_hand_price = 2)
+    // if(second_hand_price = 3)
+  }
+  if(VIP = false &&  price >=50)
+  if(VIP = true &&  price >=50)
+  if(price >30 && second_hand_price >60)
+
+  ]
+`;
+
 function App() {
   useEffect(() => {
-    console.log(JSON.stringify(parseGpt(test)));
+    // console.log(JSON.stringify(parseGpt(test)));
+    console.log(JSON.stringify(parseGpt(test2)));
+    console.log(JSON.stringify(traverseAST(parseGpt(test2))));
   }, []);
   return (
     <>
