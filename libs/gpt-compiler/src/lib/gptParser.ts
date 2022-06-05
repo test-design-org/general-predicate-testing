@@ -2,9 +2,10 @@ import { IntervalDTO, IsOpen } from '@testing-repo/gpt-common';
 import { Interval } from 'interval-arithmetic';
 import ohm from 'ohm-js';
 import ohmExtras from 'ohm-js/extras';
+import { SuperProperty } from 'typescript';
 
-interface VarType {}
-interface BoolType extends VarType {}
+class VarType {}
+class BoolType extends VarType {}
 class NumType implements VarType {
   constructor(public precision: number) {}
 
@@ -13,67 +14,86 @@ class NumType implements VarType {
   }
 }
 
-interface FeatureNode {
-  variables: VarNode[];
-  ifStatements: IfNode[];
-  features: FeatureNode[];
+class FeatureNode {
+  constructor(
+    public variables: VarNode[],
+    public ifStatements: IfNode[],
+    public features: FeatureNode[],
+  ) {}
 }
 
-interface VarNode {
-  varName: string;
-  varType: VarType;
+class VarNode {
+  constructor(public varName: string, public varType: VarType) {}
 }
 
-interface IfNode {
-  conditions: ConditionsNode;
-  body?: IfNode[];
-  elseIf?: ElseIfNode[];
-  else?: ElseNode;
+class IfNode {
+  constructor(
+    public conditions: ConditionsNode,
+    public body: IfNode[],
+    public elseIf: ElseIfNode[],
+    public elseNode?: ElseNode,
+  ) {}
 }
 
-interface ElseIfNode {
-  conditions: ConditionsNode;
-  body?: IfNode[];
+class ElseIfNode {
+  constructor(public conditions: ConditionsNode, public body: IfNode[]) {}
 }
 
-interface ElseNode {
-  body?: IfNode[];
+class ElseNode {
+  constructor(public body: IfNode[]) {}
 }
 
-interface ConditionsNode {
-  conditions: Condition[];
+class ConditionsNode {
+  constructor(public conditions: Condition[]) {}
 }
 
 type EqOp = '=' | '!=';
 type BinaryOp = '<=' | '>=' | '!=' | '<' | '>' | '=';
 type IntervalOp = 'in' | 'not in';
 
-interface Condition {}
-interface BoolCondition extends Condition {
-  varName: string;
-  eqOp: EqOp;
-  boolVal: boolean;
+class Condition {}
+class BoolCondition extends Condition {
+  constructor(
+    public varName: string,
+    public eqOp: EqOp,
+    public boolVal: boolean,
+  ) {
+    super();
+  }
 }
 
-interface BinaryCondition extends Condition {
-  constantPosition: 'lhs' | 'rhs';
-  constant: number;
-  binaryOp: BinaryOp;
-  varName: string;
+class BinaryCondition extends Condition {
+  constructor(
+    public constantPosition: 'lhs' | 'rhs',
+    public constant: number,
+    public binaryOp: BinaryOp,
+    public varName: string,
+  ) {
+    super();
+  }
 }
 
-interface IntervalCondition extends Condition {
-  varName: string;
-  intervalOp: IntervalOp;
-  interval: IntervalWithOpenness;
+class IntervalCondition extends Condition {
+  constructor(
+    public varName: string,
+    public intervalOp: IntervalOp,
+    public interval: IntervalWithOpenness,
+  ) {
+    super();
+  }
 }
 
-interface IntervalWithOpenness {
-  interval: Interval;
-  isOpen: IsOpen;
+class IntervalWithOpenness {
+  constructor(public interval: Interval, public isOpen: IsOpen) {}
 }
 
-type ASTNode = FeatureNode | VarNode;
+type ASTNode =
+  | FeatureNode
+  | VarNode
+  | IfNode
+  | ElseIfNode
+  | ElseNode
+  | ConditionsNode;
 
 const gptGrammar = ohm.grammar(String.raw`
 Gpt {
@@ -116,15 +136,147 @@ Gpt {
 }
 `);
 
-const gptSemantics = gptGrammar.createSemantics().addOperation('toAST', {
-  Feature(_lBrace, statements, _rBrace): FeatureNode {
-    const statementASTs: ASTNode = statements['toAST']();
-    return ({
-      variables: 
-    });
-  },
-  VarDecl_bool(_var, varName, _colon, _bool): 
-});
+const isVarNode = (x: ASTNode): x is VarNode => x instanceof VarNode;
+const isIfNode = (x: ASTNode): x is IfNode => x instanceof IfNode;
+const isFeatureNode = (x: ASTNode): x is FeatureNode =>
+  x instanceof FeatureNode;
+
+const gptSemantics = gptGrammar
+  .createSemantics()
+  .addOperation('toAST', {
+    _iter(...children): any {
+      return children.map((c) => c['toAST']());
+    },
+    Feature(_lBrace, statements, _rBrace): FeatureNode {
+      const statementASTs: ASTNode[] = statements.children.map((node) =>
+        node['toAST'](),
+      );
+      return new FeatureNode(
+        statementASTs.filter(isVarNode),
+        statementASTs.filter(isIfNode),
+        statementASTs.filter(isFeatureNode),
+      );
+    },
+    VarDecl_bool(_var, varName, _colon, _bool): VarNode {
+      return new VarNode(varName.sourceString, new BoolType());
+    },
+    VarDecl_int(_var, varName, _colon, _int): VarNode {
+      return new VarNode(varName.sourceString, NumType.integer());
+    },
+    VarDecl_numWithPrec(
+      _var,
+      varName,
+      _colon,
+      _num,
+      _lBrace,
+      precision,
+      _rBrace,
+    ): VarNode {
+      return new VarNode(
+        varName.sourceString,
+        new NumType(parseFloat(precision.sourceString)),
+      );
+    },
+    VarDecl_num(_var, varName, _colon, _num): VarNode {
+      return new VarNode(varName.sourceString, new NumType(0.01));
+    },
+    IfStmt(
+      _if,
+      _lBrace1,
+      conditions,
+      _rBrace1,
+      _lBrace2,
+      body,
+      _rBrace2,
+      elseIfs,
+      elseNode,
+    ): IfNode {
+      return new IfNode(
+        conditions['toAST'](),
+        body.children.map((node) => node['toAST']()),
+        elseIfs.children.map((node) => node['toAST']()),
+        elseNode.children[0]?.['toAST'](),
+      );
+    },
+    ElseIf(
+      _else,
+      _if,
+      _lBrace1,
+      conditions,
+      _rBrace1,
+      _lBrace2,
+      body,
+      _rBrace2,
+    ): ElseIfNode {
+      return new ElseIfNode(
+        conditions['toAST'](),
+        body.children.map((node) => node['toAST']()),
+      );
+    },
+    Else(_else, _lBrace, body, _rBrace): ElseNode {
+      return new ElseNode(body.children.map((node) => node['toAST']()));
+    },
+    Conditions(conditions): ConditionsNode {
+      return new ConditionsNode(
+        conditions['asIteration']().children.map((node) =>
+          node['toCondition'](),
+        ),
+      );
+    },
+  } as ohm.ActionDict<ASTNode>)
+  .addOperation('toCondition', {
+    _iter(...children) {
+      return children.map((c) => c['toCondition']());
+    },
+    Cond_boolLhs(boolVal, eqOp, varName): BoolCondition {
+      return new BoolCondition(
+        varName.sourceString,
+        eqOp.sourceString as EqOp,
+        boolVal.sourceString === 'true',
+      );
+    },
+    Cond_boolRhs(varName, eqOp, boolVal): BoolCondition {
+      return new BoolCondition(
+        varName.sourceString,
+        eqOp.sourceString as EqOp,
+        boolVal.sourceString === 'true',
+      );
+    },
+    Cond_binaryLhs(constantNumber, binaryOp, varName): BinaryCondition {
+      return new BinaryCondition(
+        'lhs',
+        parseFloat(constantNumber.sourceString),
+        binaryOp.sourceString as BinaryOp,
+        varName.sourceString,
+      );
+    },
+    Cond_binaryRhs(varName, binaryOp, constantNumber): BinaryCondition {
+      return new BinaryCondition(
+        'rhs',
+        parseFloat(constantNumber.sourceString),
+        binaryOp.sourceString as BinaryOp,
+        varName.sourceString,
+      );
+    },
+    Cond_interval(varName, intervalOp, interval): IntervalCondition {
+      return new IntervalCondition(
+        varName.sourceString,
+        intervalOp.sourceString as IntervalOp,
+        interval['toInterval'](),
+      );
+    },
+  } as ohm.ActionDict<Condition>)
+  .addOperation('toInterval', {
+    Interval(lBrace, lo, _comma, hi, rBrace): IntervalWithOpenness {
+      return new IntervalWithOpenness(
+        new Interval(parseFloat(lo.sourceString), parseFloat(hi.sourceString)),
+        {
+          lo: lBrace.sourceString === '(',
+          hi: rBrace.sourceString === ')',
+        },
+      );
+    },
+  });
 
 export const parseGpt = (text: string) => {
   const match = gptGrammar.match(text);

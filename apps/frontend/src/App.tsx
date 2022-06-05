@@ -65,7 +65,7 @@ const test = String.raw`
 
 function App() {
   useEffect(() => {
-    console.log(parseGpt(test));
+    console.log(JSON.stringify(parseGpt(test)));
   }, []);
   return (
     <>
