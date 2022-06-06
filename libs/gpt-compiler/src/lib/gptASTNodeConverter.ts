@@ -19,8 +19,6 @@ TODO: Intervals should handle more intervals
 
 TODO: Nested features
 
-TODO: If traversing should be in a reverse order
-
   x    y    z    a
 (..., ..., ..., ...)
 
@@ -166,7 +164,7 @@ const convertConditionNode = (
 
 const traverseIfNode = (
   ifNode: IfNode,
-): { varName: string; iinput: IInput }[] => {
+): { varName: string; iinput: IInput }[][] => {
   if (ifNode.elseIf?.length > 0) {
     throw new Error('Else if not yet supported!');
   }
@@ -176,9 +174,13 @@ const traverseIfNode = (
 
   const initialConditions = convertConditionNode(ifNode.conditions);
 
-  const bodyConditions = ifNode.body?.map(traverseIfNode).flat() ?? [];
+  if (ifNode.body === undefined) {
+    return [initialConditions];
+  }
 
-  return [...initialConditions, ...bodyConditions];
+  const bodyConditions = ifNode.body.map(traverseIfNode).flat();
+
+  return bodyConditions.map((x) => [...initialConditions, ...x]);
 };
 
 export const traverseFeatureNodeForVars = (
@@ -200,28 +202,32 @@ const traverseFeatureNode = (
   // The variables will be inserted into the nTuple in this order
   const varNodes = traverseFeatureNodeForVars(featureNode);
 
-  const nTuples = featureNode.ifStatements.map((ifStmt) => {
-    const iinputs = traverseIfNode(ifStmt);
+  const nTuples = featureNode.ifStatements
+    .map((ifStmt) => {
+      const multipleIinputs = traverseIfNode(ifStmt);
 
-    const orderedIInputs = varNodes.map((variable) => {
-      const iinputsForVar = iinputs.filter(
-        (iinput) => iinput.varName === variable.varName,
-      );
+      return multipleIinputs.map((iinputs) => {
+        const orderedIInputs = varNodes.map((variable) => {
+          const iinputsForVar = iinputs.filter(
+            (iinput) => iinput.varName === variable.varName,
+          );
 
-      if (iinputsForVar.length > 1) {
-        throw new Error(
-          `Multiple conditions given for var ${variable.varName}, it is not yet implemented to give it multiple conditions.`,
-        );
-      }
-      if (iinputsForVar.length === 0) return new MissingVariableDTO();
-      // iinputsForVar.length === 1
-      else {
-        return iinputsForVar[0].iinput;
-      }
-    });
+          if (iinputsForVar.length > 1) {
+            throw new Error(
+              `Multiple conditions given for var ${variable.varName}, it is not yet implemented to give it multiple conditions.`,
+            );
+          }
+          if (iinputsForVar.length === 0) return new MissingVariableDTO();
+          // iinputsForVar.length === 1
+          else {
+            return iinputsForVar[0].iinput;
+          }
+        });
 
-    return new NTuple(orderedIInputs);
-  });
+        return new NTuple(orderedIInputs);
+      });
+    })
+    .flat();
 
   return [varNodes, nTuples];
 };
