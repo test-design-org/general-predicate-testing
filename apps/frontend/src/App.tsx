@@ -2,7 +2,11 @@ import React, { useEffect } from 'react';
 import ManualTester from './components/ManualTester';
 
 import './App.scss';
-import { parseGpt, traverseAST } from '@testing-repo/gpt-compiler';
+import {
+  parseGpt,
+  traverseAST,
+  traverseASTtoIR,
+} from '@testing-repo/gpt-compiler';
 
 const test = String.raw`
 [
@@ -86,6 +90,7 @@ function App() {
     // console.log(JSON.stringify(parseGpt(test)));
     console.log(JSON.stringify(parseGpt(test2)));
     console.log(JSON.stringify(traverseAST(parseGpt(test2))));
+    console.log(JSON.stringify(traverseASTtoIR(parseGpt(test2))));
   }, []);
   return (
     <>

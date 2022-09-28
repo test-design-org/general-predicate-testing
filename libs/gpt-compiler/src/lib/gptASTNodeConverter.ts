@@ -34,19 +34,15 @@ import {
   NTuple,
 } from '@testing-repo/gpt-common';
 import {
-  ASTNode,
   BinaryCondition,
   BinaryOp,
   BoolCondition,
-  BoolType,
   ConditionsNode,
   EqOp,
   FeatureNode,
   IfNode,
   IntervalCondition,
-  NumType,
   VarNode,
-  VarType,
 } from './AST';
 import { BoolVariable, NumberVariable, Variable } from './plaintextParser';
 
@@ -146,19 +142,16 @@ const convertConditionNode = (
   conds: ConditionsNode,
 ): { varName: string; iinput: IInput }[] => {
   return conds.conditions.map((cond) => {
-    if (cond instanceof BoolCondition) {
-      return convertBoolCondition(cond);
-    }
+    switch (cond.type) {
+      case 'bool':
+        return convertBoolCondition(cond);
 
-    if (cond instanceof BinaryCondition) {
-      return convertBinaryCondition(cond);
-    }
+      case 'binary':
+        return convertBinaryCondition(cond);
 
-    if (cond instanceof IntervalCondition) {
-      return convertIntervalCondition(cond);
+      case 'interval':
+        return convertIntervalCondition(cond);
     }
-
-    throw new Error('Condition is not an instance of a valid type');
   });
 };
 
@@ -233,15 +226,13 @@ const traverseFeatureNode = (
 };
 
 const convertVariable = (varNode: VarNode): Variable => {
-  if (varNode.varType instanceof BoolType) {
-    return new BoolVariable(varNode.varName);
-  }
+  switch (varNode.varType.type) {
+    case 'bool':
+      return new BoolVariable(varNode.varName);
 
-  if (varNode.varType instanceof NumType) {
-    return new NumberVariable(varNode.varName, varNode.varType.precision);
+    case 'number':
+      return new NumberVariable(varNode.varName, varNode.varType.precision);
   }
-
-  throw new Error('Unknown VarType passed to convertVariable');
 };
 
 export const traverseAST = (ast: FeatureNode): [Variable[], NTuple[]] => {

@@ -6,7 +6,6 @@ import {
   BinaryCondition,
   BinaryOp,
   BoolCondition,
-  BoolType,
   Condition,
   ConditionsNode,
   ElseIfNode,
@@ -17,7 +16,6 @@ import {
   IntervalCondition,
   IntervalOp,
   IntervalWithOpenness,
-  NumType,
   VarNode,
 } from './AST';
 import { traverseAST } from './gptASTNodeConverter';
@@ -64,10 +62,9 @@ Gpt {
 }
 `);
 
-const isVarNode = (x: ASTNode): x is VarNode => x instanceof VarNode;
-const isIfNode = (x: ASTNode): x is IfNode => x instanceof IfNode;
-const isFeatureNode = (x: ASTNode): x is FeatureNode =>
-  x instanceof FeatureNode;
+const isVarNode = (x: ASTNode): x is VarNode => x.type === 'var';
+const isIfNode = (x: ASTNode): x is IfNode => x.type === 'if';
+const isFeatureNode = (x: ASTNode): x is FeatureNode => x.type === 'feature';
 
 const gptSemantics = gptGrammar
   .createSemantics()
@@ -79,17 +76,26 @@ const gptSemantics = gptGrammar
       const statementASTs: ASTNode[] = statements.children.map((node) =>
         node['toAST'](),
       );
-      return new FeatureNode(
-        statementASTs.filter(isVarNode),
-        statementASTs.filter(isIfNode),
-        statementASTs.filter(isFeatureNode),
-      );
+      return {
+        type: 'feature',
+        variables: statementASTs.filter(isVarNode),
+        ifStatements: statementASTs.filter(isIfNode),
+        features: statementASTs.filter(isFeatureNode),
+      };
     },
     VarDecl_bool(_var, varName, _colon, _bool): VarNode {
-      return new VarNode(varName.sourceString, new BoolType());
+      return {
+        type: 'var',
+        varName: varName.sourceString,
+        varType: { type: 'bool' },
+      };
     },
     VarDecl_int(_var, varName, _colon, _int): VarNode {
-      return new VarNode(varName.sourceString, NumType.integer());
+      return {
+        type: 'var',
+        varName: varName.sourceString,
+        varType: { type: 'number', precision: 1 },
+      };
     },
     VarDecl_numWithPrec(
       _var,
@@ -100,13 +106,24 @@ const gptSemantics = gptGrammar
       precision,
       _rBrace,
     ): VarNode {
-      return new VarNode(
-        varName.sourceString,
-        new NumType(parseFloat(precision.sourceString)),
-      );
+      return {
+        type: 'var',
+        varName: varName.sourceString,
+        varType: {
+          type: 'number',
+          precision: parseFloat(precision.sourceString),
+        },
+      };
     },
     VarDecl_num(_var, varName, _colon, _num): VarNode {
-      return new VarNode(varName.sourceString, new NumType(0.01));
+      return {
+        type: 'var',
+        varName: varName.sourceString,
+        varType: {
+          type: 'number',
+          precision: 0.01,
+        },
+      };
     },
     IfStmt(
       _if,
@@ -119,12 +136,13 @@ const gptSemantics = gptGrammar
       elseIfs,
       elseNode,
     ): IfNode {
-      return new IfNode(
-        conditions['toAST'](),
-        body.children.map((node) => node['toAST']())[0],
-        elseIfs.children.map((node) => node['toAST']()),
-        elseNode?.children[0]?.['toAST'](),
-      );
+      return {
+        type: 'if',
+        conditions: conditions['toAST'](),
+        body: body.children.map((node) => node['toAST']())[0],
+        elseIf: elseIfs.children.map((node) => node['toAST']()),
+        elseNode: elseNode?.children[0]?.['toAST'](),
+      };
     },
     ElseIf(
       _else,
@@ -136,73 +154,86 @@ const gptSemantics = gptGrammar
       body,
       _rBrace2,
     ): ElseIfNode {
-      return new ElseIfNode(
-        conditions['toAST'](),
-        body.children.map((node) => node['toAST']())[0],
-      );
+      return {
+        type: 'elseIf',
+        conditions: conditions['toAST'](),
+        body: body.children.map((node) => node['toAST']())[0],
+      };
     },
     Else(_else, _lBrace, body, _rBrace): ElseNode {
-      return new ElseNode(body.children.map((node) => node['toAST']()));
+      return {
+        type: 'else',
+        body: body.children.map((node) => node['toAST']()),
+      };
     },
     Conditions(conditions): ConditionsNode {
-      return new ConditionsNode(
-        conditions['asIteration']().children.map((node) =>
+      return {
+        type: 'conditions',
+        conditions: conditions['asIteration']().children.map((node) =>
           node['toCondition'](),
         ),
-      );
+      };
     },
   } as ohm.ActionDict<ASTNode>)
   .addOperation('toCondition', {
-    _iter(...children) {
+    _iter(...children): any {
       return children.map((c) => c['toCondition']());
     },
     Cond_boolLhs(boolVal, eqOp, varName): BoolCondition {
-      return new BoolCondition(
-        varName.sourceString,
-        eqOp.sourceString as EqOp,
-        boolVal.sourceString === 'true',
-      );
+      return {
+        type: 'bool',
+        varName: varName.sourceString,
+        eqOp: eqOp.sourceString as EqOp,
+        boolVal: boolVal.sourceString === 'true',
+      };
     },
     Cond_boolRhs(varName, eqOp, boolVal): BoolCondition {
-      return new BoolCondition(
-        varName.sourceString,
-        eqOp.sourceString as EqOp,
-        boolVal.sourceString === 'true',
-      );
+      return {
+        type: 'bool',
+        varName: varName.sourceString,
+        eqOp: eqOp.sourceString as EqOp,
+        boolVal: boolVal.sourceString === 'true',
+      };
     },
     Cond_binaryLhs(constantNumber, binaryOp, varName): BinaryCondition {
-      return new BinaryCondition(
-        'lhs',
-        parseFloat(constantNumber.sourceString),
-        binaryOp.sourceString as BinaryOp,
-        varName.sourceString,
-      );
+      return {
+        type: 'binary',
+        varName: varName.sourceString,
+        constantPosition: 'lhs',
+        constant: parseFloat(constantNumber.sourceString),
+        binaryOp: binaryOp.sourceString as BinaryOp,
+      };
     },
     Cond_binaryRhs(varName, binaryOp, constantNumber): BinaryCondition {
-      return new BinaryCondition(
-        'rhs',
-        parseFloat(constantNumber.sourceString),
-        binaryOp.sourceString as BinaryOp,
-        varName.sourceString,
-      );
+      return {
+        type: 'binary',
+        varName: varName.sourceString,
+        constantPosition: 'rhs',
+        constant: parseFloat(constantNumber.sourceString),
+        binaryOp: binaryOp.sourceString as BinaryOp,
+      };
     },
     Cond_interval(varName, intervalOp, interval): IntervalCondition {
-      return new IntervalCondition(
-        varName.sourceString,
-        intervalOp.sourceString as IntervalOp,
-        interval['toInterval'](),
-      );
+      return {
+        type: 'interval',
+        varName: varName.sourceString,
+        intervalOp: intervalOp.sourceString as IntervalOp,
+        interval: interval['toInterval'](),
+      };
     },
   } as ohm.ActionDict<Condition>)
   .addOperation('toInterval', {
     Interval(lBrace, lo, _comma, hi, rBrace): IntervalWithOpenness {
-      return new IntervalWithOpenness(
-        new Interval(parseFloat(lo.sourceString), parseFloat(hi.sourceString)),
-        {
+      return {
+        interval: new Interval(
+          parseFloat(lo.sourceString),
+          parseFloat(hi.sourceString),
+        ),
+        isOpen: {
           lo: lBrace.sourceString === '(',
           hi: rBrace.sourceString === ')',
         },
-      );
+      };
     },
   });
 

@@ -1,91 +1,79 @@
 import { IsOpen } from '@testing-repo/gpt-common';
 import { Interval } from 'interval-arithmetic';
 
-export class VarType {}
-export class BoolType extends VarType {}
-export class NumType implements VarType {
-  constructor(public precision: number) {}
-
-  static integer() {
-    return new NumType(1);
-  }
-}
-
-export class FeatureNode {
-  constructor(
-    public variables: VarNode[],
-    public ifStatements: IfNode[],
-    public features: FeatureNode[],
-  ) {}
-}
-
-export class VarNode {
-  constructor(public varName: string, public varType: VarType) {}
-}
-
-export class IfNode {
-  constructor(
-    public conditions: ConditionsNode,
-    public body: IfNode[] | undefined,
-    public elseIf: ElseIfNode[],
-    public elseNode: ElseNode | undefined,
-  ) {}
-}
-
-export class ElseIfNode {
-  constructor(
-    public conditions: ConditionsNode,
-    public body: IfNode[] | undefined,
-  ) {}
-}
-
-export class ElseNode {
-  constructor(public body: IfNode[]) {}
-}
-
-export class ConditionsNode {
-  constructor(public conditions: Condition[]) {}
-}
+export type BoolType = { type: 'bool' };
+export type NumberType = { type: 'number'; precision: number };
+export type VarType = BoolType | NumberType;
 
 export type EqOp = '=' | '!=';
 export type BinaryOp = '<=' | '>=' | '!=' | '<' | '>' | '=';
 export type IntervalOp = 'in' /*| 'not in' */;
 
-export class Condition {}
-export class BoolCondition extends Condition {
-  constructor(
-    public varName: string,
-    public eqOp: EqOp,
-    public boolVal: boolean,
-  ) {
-    super();
-  }
-}
+export type BoolCondition = {
+  type: 'bool';
+  varName: string;
+  eqOp: EqOp;
+  boolVal: boolean;
+};
 
-export class BinaryCondition extends Condition {
-  constructor(
-    public constantPosition: 'lhs' | 'rhs',
-    public constant: number,
-    public binaryOp: BinaryOp,
-    public varName: string,
-  ) {
-    super();
-  }
-}
+export type BinaryCondition = {
+  type: 'binary';
+  varName: string;
+  constantPosition: 'lhs' | 'rhs';
+  constant: number;
+  binaryOp: BinaryOp;
+};
 
-export class IntervalCondition extends Condition {
-  constructor(
-    public varName: string,
-    public intervalOp: IntervalOp,
-    public interval: IntervalWithOpenness,
-  ) {
-    super();
-  }
-}
+export type IntervalCondition = {
+  type: 'interval';
+  varName: string;
+  intervalOp: IntervalOp;
+  interval: IntervalWithOpenness;
+};
 
-export class IntervalWithOpenness {
-  constructor(public interval: Interval, public isOpen: IsOpen) {}
-}
+export type Condition = BoolCondition | BinaryCondition | IntervalCondition;
+
+export type IntervalWithOpenness = {
+  interval: Interval;
+  isOpen: IsOpen;
+};
+
+export type FeatureNode = {
+  type: 'feature';
+  variables: VarNode[];
+  ifStatements: IfNode[];
+  features: FeatureNode[];
+};
+
+export type VarNode = {
+  type: 'var';
+  varName: string;
+  varType: VarType;
+};
+
+export type IfNode = {
+  type: 'if';
+  conditions: ConditionsNode;
+  body?: IfNode[];
+  elseIf: ElseIfNode[];
+  elseNode?: ElseNode;
+};
+
+export type ElseIfNode = {
+  type: 'elseIf';
+  conditions: ConditionsNode;
+  body?: IfNode[];
+};
+
+export type ElseNode = {
+  type: 'else';
+  body: IfNode[];
+};
+
+export type ConditionsNode = {
+  type: 'conditions';
+  conditions: Condition[];
+};
 
 export type ASTNode =
   | FeatureNode
