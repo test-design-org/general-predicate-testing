@@ -31,37 +31,26 @@ const flipBinaryOp: { [key in BinaryOp]: BinaryOp } = {
   '>': '<',
 };
 
-const mapEqOpToExpression = (
-  eqOp: EqOp,
-  boolVal: boolean,
-): [Expression, boolean] => {
+export const resolveBoolCondition = (eqOp: EqOp, boolVal: boolean): boolean => {
   /*
-  x = true                -> BoolTrue true
-  x != true   -> = false  -> BoolFalse false
-  x = false               -> BoolFalse false
-  x != false  -> = true   -> BoolTrue true
+  x = true    ->  true
+  x != true   ->  false
+  x = false   ->  false
+  x != false  ->  true
   */
   switch (eqOp) {
     case '=':
-      if (boolVal === true) {
-        return [Expression.BoolTrue, true];
-      } else {
-        return [Expression.BoolFalse, false];
-      }
+      return boolVal;
 
     case '!=':
-      if (boolVal === true) {
-        return [Expression.BoolFalse, false];
-      } else {
-        return [Expression.BoolTrue, true];
-      }
+      return !boolVal;
   }
 };
 
-const convertBoolCondition = (cond: BoolCondition): GPT.Condition => {
-  const [expression, boolVal] = mapEqOpToExpression(cond.eqOp, cond.boolVal);
+export const convertBoolCondition = (cond: BoolCondition): GPT.Condition => {
+  const shouldEqualTo = resolveBoolCondition(cond.eqOp, cond.boolVal);
 
-  return { type: 'bool', varName: cond.varName, expression, boolVal };
+  return { type: 'bool', varName: cond.varName, shouldEqualTo };
 };
 
 const convertBinaryCondition = (cond: BinaryCondition): GPT.Condition => {

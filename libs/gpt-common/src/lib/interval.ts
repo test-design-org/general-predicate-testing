@@ -20,6 +20,10 @@ export class MultiInterval {
     this.intervals = intervals;
   }
 
+  public DONTUSE_getInterval(): [IsOpen, Interval] {
+    return this.intervals[0];
+  }
+
   static simple(interval: Interval, isOpen: IsOpen) {
     return new MultiInterval([[isOpen, interval]]);
   }

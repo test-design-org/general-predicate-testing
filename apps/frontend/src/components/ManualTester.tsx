@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { runMONKE, generateGraph } from '@testing-repo/gpt-algorithm';
 import { Graph } from '@testing-repo/gpt-common';
 import {
+  parseGpt,
   parseGptToNTuples,
   parseInput,
   Variable,
+  parseGPTtoNTuplesWithIR,
 } from '@testing-repo/gpt-compiler';
 
 import './ManualTester.scss';
@@ -19,7 +21,9 @@ interface GeneratedState {
 const generateState = (input: string) => {
   // const [variables, testCases] = parseInput(input);
 
-  const [variables, nTuples] = parseGptToNTuples(input);
+  // const [variables, nTuples] = parseGptToNTuples(input);
+  const [variables, nTuples] = parseGPTtoNTuplesWithIR(input);
+
   const testCases = nTuples.map((x) => x.list);
 
   console.log(variables, testCases);

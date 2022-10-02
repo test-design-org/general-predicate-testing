@@ -21,8 +21,7 @@ export namespace GPT {
   export type BoolCondition = {
     type: 'bool';
     varName: string;
-    expression: Expression;
-    boolVal: boolean;
+    shouldEqualTo: boolean;
   };
 
   export type IntervalCondition = {

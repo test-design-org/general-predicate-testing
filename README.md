@@ -84,5 +84,10 @@ Teams using Nx gain the advantage of building full-stack applications with their
 Visit [Nx Cloud](https://nx.app/) to learn more.
 
 ## Development
+### Nx Commands
+Test all
+
+    nx run-many --all --target=test --parallel
+
 ### Parsing
 We use [ohm-js](https://ohmjs.org/docs/intro) for parsing. Check out the documentation and the online debugger they have. 

@@ -18,7 +18,9 @@ import {
   IntervalWithOpenness,
   VarNode,
 } from './AST';
+import { traverseASTtoIR } from './ASTtoIR';
 import { traverseAST } from './gptASTNodeConverter';
+import { IRtoNTuple } from './IRtoNTuple';
 import { Variable } from './plaintextParser';
 
 const gptGrammar = ohm.grammar(String.raw`
@@ -249,4 +251,11 @@ export const parseGpt = (text: string) => {
 
 export const parseGptToNTuples = (text: string): [Variable[], NTuple[]] => {
   return traverseAST(parseGpt(text));
+};
+
+export const parseGPTtoNTuplesWithIR = (
+  text: string,
+): [Variable[], NTuple[]] => {
+  const [variables, predicates] = traverseASTtoIR(parseGpt(text));
+  return IRtoNTuple(variables, predicates);
 };
