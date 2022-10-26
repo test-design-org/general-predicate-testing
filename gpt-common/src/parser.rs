@@ -2,16 +2,23 @@ use std::collections::HashMap;
 use std::num::ParseIntError;
 
 use nom::bytes::complete::tag;
-use nom::character::complete::{digit1, space0};
-use nom::combinator::{complete, map, map_res, opt, recognize};
+use nom::bytes::complete::take;
+use nom::character::complete::anychar;
+use nom::character::complete::{alphanumeric0, digit1, space0};
+use nom::character::is_alphabetic;
+use nom::combinator::fail;
+use nom::combinator::{complete, cond, map, map_res, opt, peek, recognize};
+use nom::multi::count;
 use nom::number::complete::recognize_float;
 use nom::sequence::{separated_pair, terminated, tuple};
 use nom::IResult;
 use nom::{branch::alt, character::streaming::char};
 
-use crate::interval::{Interval, Openness};
+use crate::interval::{Boundary, Interval};
 
-use self::ast::{BinaryOp, BoolOp, EqOp, IntervalOp};
+use self::ast::BoolCondition;
+use self::ast::ConstantPosition;
+use self::ast::{BinaryOp, BoolOp, Condition, EqOp, IntervalOp};
 
 pub mod ast;
 
@@ -112,23 +119,23 @@ fn bool_op(input: &str) -> IResult<&str, BoolOp> {
     )(input)
 }
 
-fn parse_lo_openness(input: &str) -> IResult<&str, Openness> {
+fn parse_lo_openness(input: &str) -> IResult<&str, Boundary> {
     map_res(alt((char('('), char('['))), |left_brace| match left_brace {
-        '(' => Ok(Openness::Open),
-        '[' => Ok(Openness::Closed),
+        '(' => Ok(Boundary::Open),
+        '[' => Ok(Boundary::Closed),
         _ => Err(()),
     })(input)
 }
 
-fn parse_hi_openness(input: &str) -> IResult<&str, Openness> {
+fn parse_hi_openness(input: &str) -> IResult<&str, Boundary> {
     map_res(alt((char(')'), char(']'))), |left_brace| match left_brace {
-        ')' => Ok(Openness::Open),
-        ']' => Ok(Openness::Closed),
+        ')' => Ok(Boundary::Open),
+        ']' => Ok(Boundary::Closed),
         _ => Err(()),
     })(input)
 }
 
-fn interval(input: &str) -> IResult<&str, Interval> {
+pub fn interval(input: &str) -> IResult<&str, Interval> {
     map_res(
         tuple((
             terminated(parse_lo_openness, space0),
@@ -138,12 +145,54 @@ fn interval(input: &str) -> IResult<&str, Interval> {
             terminated(parse_hi_openness, space0),
         )),
         |(lo_openness, lo, _comma, hi, hi_openness)| {
-            Ok::<Interval, ()>(Interval::new(lo_openness, lo, hi, hi_openness))
+            Interval::new(lo_openness, lo, hi, hi_openness)
         },
     )(input)
 }
 
 // TODO: Cond, Conditions, if-elseif-else, vardecl, feature
+
+fn parse_alphabetic(input: &str) -> IResult<&str, char> {
+    let (i, c) = anychar(input)?;
+    if is_alphabetic(c as u8) {
+        Ok((i, c))
+    } else {
+        fail(input)
+    }
+}
+
+fn var_name(input: &str) -> IResult<&str, &str> {
+    recognize(tuple((alt((parse_alphabetic, char('_'))), alphanumeric0)))(input)
+}
+
+fn condition_bool_lhs(input: &str) -> IResult<&str, Condition> {
+    map(
+        tuple((boolean, eq_op, var_name)),
+        |(constant, eq_op, var_name)| {
+            Condition::Bool(BoolCondition {
+                var_name,
+                constant,
+                eq_op,
+            })
+        },
+    )(input)
+}
+fn condition_bool_rhs(input: &str) -> IResult<&str, Condition> {
+    map(
+        tuple((var_name, eq_op, boolean)),
+        |(var_name, eq_op, constant)| {
+            Condition::Bool(BoolCondition {
+                var_name,
+                constant,
+                eq_op,
+            })
+        },
+    )(input)
+}
+
+fn condition(input: &str) -> IResult<&str, Condition> {
+    todo!()
+}
 
 #[cfg(test)]
 mod tests {
@@ -242,15 +291,15 @@ mod tests {
 
     #[test]
     fn test_parse_lo_openness() {
-        assert_eq!(parse_lo_openness("("), Ok(("", Openness::Open)));
-        assert_eq!(parse_lo_openness("["), Ok(("", Openness::Closed)));
+        assert_eq!(parse_lo_openness("("), Ok(("", Boundary::Open)));
+        assert_eq!(parse_lo_openness("["), Ok(("", Boundary::Closed)));
         assert!(parse_lo_openness("other").is_err());
     }
 
     #[test]
     fn test_parse_hi_openness() {
-        assert_eq!(parse_hi_openness(")"), Ok(("", Openness::Open)));
-        assert_eq!(parse_hi_openness("]"), Ok(("", Openness::Closed)));
+        assert_eq!(parse_hi_openness(")"), Ok(("", Boundary::Open)));
+        assert_eq!(parse_hi_openness("]"), Ok(("", Boundary::Closed)));
         assert!(parse_hi_openness("other").is_err());
     }
 
@@ -260,16 +309,33 @@ mod tests {
             interval("(12.0,Inf]"),
             Ok((
                 "",
-                Interval::new(Openness::Open, 12.0, f32::INFINITY, Openness::Closed)
+                Interval::new(Boundary::Open, 12.0, f32::INFINITY, Boundary::Closed).unwrap()
             ))
         );
         assert_eq!(
             interval("[   -43   ,    54   )   "),
             Ok((
                 "",
-                Interval::new(Openness::Closed, -43.0, 54.0, Openness::Open)
+                Interval::new(Boundary::Closed, -43.0, 54.0, Boundary::Open).unwrap()
             ))
         );
         assert!(interval("other").is_err());
+    }
+
+    #[test]
+    fn test_parse_alphabetic() {
+        assert_eq!(parse_alphabetic("abc"), Ok(("bc", 'a')));
+        assert_eq!(parse_alphabetic("QWE"), Ok(("WE", 'Q')));
+        assert!(parse_alphabetic("_").is_err());
+    }
+
+    #[test]
+    fn test_var_name() {
+        assert_eq!(var_name("abc"), Ok(("", "abc")));
+        assert_eq!(var_name("f"), Ok(("", "f")));
+        assert_eq!(var_name("_private"), Ok(("", "_private")));
+        assert_eq!(var_name("some123"), Ok(("", "some123")));
+        assert_eq!(var_name("i18n"), Ok(("", "i18n")));
+        assert!(var_name("9asd").is_err());
     }
 }

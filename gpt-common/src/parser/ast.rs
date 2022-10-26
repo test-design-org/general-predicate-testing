@@ -39,6 +39,12 @@ pub enum ConstantPosition {
     RightHandSide,
 }
 
+pub struct BoolCondition<'a> {
+    pub var_name: &'a str,
+    pub constant: bool,
+    pub eq_op: EqOp,
+}
+
 pub struct BinaryCondition<'a> {
     var_name: &'a str,
     constant_position: ConstantPosition,
@@ -52,6 +58,7 @@ pub struct IntervalCondition<'a> {
 }
 
 pub enum Condition<'a> {
+    Bool(BoolCondition<'a>),
     Binary(BinaryCondition<'a>),
     Interval(IntervalCondition<'a>),
 }
