@@ -12,19 +12,6 @@ struct OneInterval {
     hi_boundary: Boundary,
 }
 
-/*
-     |--|
-|--|
-
-    |--|
-         |--|
-
-
-         [....]
-            (....)
-
-    [0, 10] i (10, 20]
-*/
 impl OneInterval {
     fn contains_point(&self, point: f32) -> bool {
         (self.lo < point && point < self.hi)
@@ -32,25 +19,14 @@ impl OneInterval {
             || (self.hi == point && self.hi_boundary == Boundary::Closed)
     }
 
-    fn cc_o(&self, point: f32, boundary: Boundary) -> bool {
-        todo!()
-        // match boundary {
-        //     Boundary::Open => ,
-        //     Boundary::Closed => ,
-        // }
-    }
-
     fn intersects_with(&self, other: &OneInterval) -> bool {
-        todo!()
-        // !((self.lo > other.hi || self.hi < other.lo)
-        //     && (self.lo == other.hi && self.hi == other.lo))
+        let doesnt_intersect = (self.lo > other.hi || other.lo > self.hi)
+            || self.lo == other.hi
+                && (self.lo_boundary == Boundary::Open || other.hi_boundary == Boundary::Open)
+            || other.lo == self.hi
+                && (other.lo_boundary == Boundary::Open || self.hi_boundary == Boundary::Open);
 
-        // || (self.lo_boundary == Boundary::Closed
-        //     && other.hi_boundary == Boundary::Closed
-        //     && self.lo == other.hi)
-        // || (self.hi_boundary == Boundary::Closed
-        //     && other.lo_boundary == Boundary::Closed
-        //     && self.hi == other.lo)
+        !doesnt_intersect
     }
 
     fn intersect(&self, other: &OneInterval) -> Option<OneInterval> {
@@ -142,7 +118,7 @@ mod test {
     }
 
     #[test]
-    fn test_OneInterval_intersect() {
+    fn test_OneInterval_intersects_with() {
         let test_cases = vec![
             // self.hi equals other.lo
             (int("[0, 10]"), int("[10, 20]"), true),
@@ -174,6 +150,16 @@ mod test {
             (int("[0, 30]"), int("[10, 20)"), true),
             (int("[0, 30]"), int("(10, 20]"), true),
             (int("[0, 30]"), int("(10, 20)"), true),
+            // self.lo > other.hi
+            (int("[20, 30]"), int("[0, 10]"), false),
+            (int("[20, 30]"), int("[0, 10)"), false),
+            (int("(20, 30]"), int("[0, 10]"), false),
+            (int("(20, 30]"), int("[0, 10)"), false),
+            // other.lo > self.hi
+            (int("[0, 10]"), int("[20, 30]"), false),
+            (int("[0, 10)"), int("[20, 30]"), false),
+            (int("[0, 10]"), int("(20, 30]"), false),
+            (int("[0, 10)"), int("(20, 30]"), false),
         ];
 
         for (this, that, expected) in test_cases {
@@ -181,6 +167,63 @@ mod test {
                 this.intersects_with(&that),
                 expected,
                 "OneInterval.intersects_with failed: {:?}.intersects_with({:?}) should be {:?}",
+                this,
+                that,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_OneInterval_intersect() {
+        let test_cases = vec![
+            // self.hi equals other.lo
+            (int("[0, 10]"), int("[10, 20]"), Some(int("[10, 10]"))),
+            (int("[0, 10]"), int("(10, 20]"), None),
+            (int("[0, 10)"), int("[10, 20]"), None),
+            (int("[0, 10)"), int("(10, 20]"), None),
+            // self.lo equals other.hi
+            (int("[10, 20]"), int("[0, 10]"), Some(int("[10, 10]"))),
+            (int("(10, 20]"), int("[0, 10]"), None),
+            (int("[10, 20]"), int("[0, 10)"), None),
+            (int("(10, 20]"), int("[0, 10)"), None),
+            // self.hi inside other == other.lo inside self
+            (int("[0, 10]"), int("[5, 20]"), Some(int("[5, 10]"))),
+            (int("[0, 10]"), int("(5, 20]"), Some(int("(5, 10]"))),
+            (int("[0, 10)"), int("[5, 20]"), Some(int("[5, 10)"))),
+            (int("[0, 10)"), int("(5, 20]"), Some(int("(5, 10)"))),
+            // self.lo inside other == other.hi inside self
+            (int("[5, 20]"), int("[0, 10]"), Some(int("[5, 10]"))),
+            (int("(5, 20]"), int("[0, 10]"), Some(int("(5, 10]"))),
+            (int("[5, 20]"), int("[0, 10)"), Some(int("[5, 10)"))),
+            (int("(5, 20]"), int("[0, 10)"), Some(int("(5, 10)"))),
+            // self inside other
+            (int("[10, 20]"), int("[0, 30]"), Some(int("[10, 20]"))),
+            (int("[10, 20)"), int("[0, 30]"), Some(int("[10, 20)"))),
+            (int("(10, 20]"), int("[0, 30]"), Some(int("(10, 20]"))),
+            (int("(10, 20)"), int("[0, 30]"), Some(int("(10, 20)"))),
+            // other inside self
+            (int("[0, 30]"), int("[10, 20]"), Some(int("[10, 20]"))),
+            (int("[0, 30]"), int("[10, 20)"), Some(int("[10, 20)"))),
+            (int("[0, 30]"), int("(10, 20]"), Some(int("(10, 20]"))),
+            (int("[0, 30]"), int("(10, 20)"), Some(int("(10, 20)"))),
+            // self.lo > other.hi
+            (int("[20, 30]"), int("[0, 10]"), None),
+            (int("[20, 30]"), int("[0, 10)"), None),
+            (int("(20, 30]"), int("[0, 10]"), None),
+            (int("(20, 30]"), int("[0, 10)"), None),
+            // other.lo > self.hi
+            (int("[0, 10]"), int("[20, 30]"), None),
+            (int("[0, 10)"), int("[20, 30]"), None),
+            (int("[0, 10]"), int("(20, 30]"), None),
+            (int("[0, 10)"), int("(20, 30]"), None),
+        ];
+
+        for (this, that, expected) in test_cases {
+            assert_eq!(
+                this.intersect(&that),
+                expected,
+                "OneInterval.intersect failed: {:?}.intersect({:?}) should be {:?}",
                 this,
                 that,
                 expected
