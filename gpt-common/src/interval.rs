@@ -1,10 +1,13 @@
+use std::fmt;
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Boundary {
     Open,
     Closed,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+/// Represents one interval with boundaries, a low value and a high value
+#[derive(PartialEq, Clone)]
 struct OneInterval {
     lo_boundary: Boundary,
     lo: f32,
@@ -46,8 +49,24 @@ impl OneInterval {
     }
 }
 
+impl fmt::Debug for OneInterval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let lo_boundary = match self.lo_boundary {
+            Boundary::Open => "(",
+            Boundary::Closed => "[",
+        };
+        let hi_boundary = match self.hi_boundary {
+            Boundary::Open => ")",
+            Boundary::Closed => "]",
+        };
+
+        write!(f, "{}{}, {}{}", lo_boundary, self.lo, self.hi, hi_boundary)
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Interval {
+    /// `intervals` is always sorted in ascending order and there are no overlapping intervals
     intervals: Vec<OneInterval>,
 }
 
@@ -78,15 +97,43 @@ impl Interval {
         }
     }
 
+    // TODO: This could be sped up, because the interval Vecs are sorted
+    // It could be a step-by-step comparison
     pub fn intersects_with(&self, other: &Interval) -> bool {
-        todo!()
+        for x in self.intervals.iter() {
+            for y in other.intervals.iter() {
+                if x.intersects_with(y) {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    pub fn intersect(&self, other: &Interval) -> Interval {
+        let mut intersected_intervals: Vec<OneInterval> = self
+            .intervals
+            .iter()
+            .flat_map(|x| other.intervals.iter().map(|y| x.intersect(y)))
+            .filter_map(|x| x)
+            .collect();
+
+        intersected_intervals.sort_by(|a, b| {
+            a.lo.partial_cmp(&b.lo)
+                .expect("f32::NaN should not be the lo value of intervals")
+        });
+
+        Interval {
+            intervals: intersected_intervals,
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::OneInterval;
-    use crate::parser::interval;
+    use crate::{interval::Interval, parser::interval};
 
     fn int(input: &str) -> OneInterval {
         let (_, x) = interval(input).unwrap();
@@ -224,6 +271,69 @@ mod test {
                 this.intersect(&that),
                 expected,
                 "OneInterval.intersect failed: {:?}.intersect({:?}) should be {:?}",
+                this,
+                that,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_Interval_intersect() {
+        let test_cases = vec![
+            // zero elements
+            (vec![], vec![], vec![]),
+            // one elem - zero elem
+            (vec![int("[0, 10]")], vec![], vec![]),
+            (vec![], vec![int("[0, 10]")], vec![]),
+            // one element, has intersection
+            (
+                vec![int("[0, 10]")],
+                vec![int("[5, 20]")],
+                vec![int("[5, 10]")],
+            ),
+            // one element - two elements, has intersection
+            (
+                vec![int("[0, 10]")],
+                vec![int("[5, 20]"), int("[100, 200]")],
+                vec![int("[5, 10]")],
+            ),
+            (
+                vec![int("[5, 20]"), int("[100, 200]")],
+                vec![int("[0, 10]")],
+                vec![int("[5, 10]")],
+            ),
+            // contains multiple intervals
+            (
+                vec![int("[0, 100]")],
+                vec![int("[10, 20]"), int("[30, 40]")],
+                vec![int("[10, 20]"), int("[30, 40]")],
+            ),
+            // overlaps with multiple intervals
+            (
+                vec![int("[20, 50]")],
+                vec![int("[0, 30]"), int("[40, 60]")],
+                vec![int("[20, 30]"), int("[40, 50]")],
+            ),
+            // multiple elements
+            (
+                vec![int("[0, 10]"), int("[20, 30]"), int("[40, 50]")],
+                vec![int("[0, 10)"), int("[15, 25]"), int("(26, 35]")],
+                vec![int("[0, 10)"), int("[20, 25]"), int("(26, 30]")],
+            ),
+        ];
+
+        for (a, b, expected_vec) in test_cases {
+            let this = Interval { intervals: a };
+            let that = Interval { intervals: b };
+            let expected = Interval {
+                intervals: expected_vec,
+            };
+
+            assert_eq!(
+                this.intersect(&that),
+                expected,
+                "Interval.intersect failed: {:?}.intersect({:?}) should be {:?}",
                 this,
                 that,
                 expected
