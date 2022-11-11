@@ -2,7 +2,7 @@ use crate::util::UniquesVec;
 
 use crate::{
     dto::{Input, IntervalDTO, NTuple},
-    interval::{Boundary, Interval, IntervalError},
+    interval::{Boundary, IntervalError, MultiInterval},
 };
 
 fn generateTestCases(inputs: &Vec<Input>) -> Vec<NTuple> {
@@ -85,7 +85,7 @@ enum OutVersion {
 fn Out(input: &IntervalDTO, version: OutVersion) -> Result<Input, IntervalError> {
     let interval = match version {
         // <, <=, Interval Right
-        OutVersion::IntervalRight => Interval::new_closed(
+        OutVersion::IntervalRight => MultiInterval::new_closed(
             input.interval.highest_hi()
                 + if input.interval.highest_boundary() == Boundary::Open {
                     1.0
@@ -95,7 +95,7 @@ fn Out(input: &IntervalDTO, version: OutVersion) -> Result<Input, IntervalError>
             f32::INFINITY,
         )?,
         // >, =>, Interval Left
-        OutVersion::IntervalLeft => Interval::new_closed(
+        OutVersion::IntervalLeft => MultiInterval::new_closed(
             f32::NEG_INFINITY,
             input.interval.lowest_lo()
                 - if input.interval.lowest_boundary() == Boundary::Open {
@@ -106,10 +106,10 @@ fn Out(input: &IntervalDTO, version: OutVersion) -> Result<Input, IntervalError>
         )?,
         // =, Right
         OutVersion::Right => {
-            Interval::new_closed(input.interval.highest_hi() + input.precision, f32::INFINITY)?
+            MultiInterval::new_closed(input.interval.highest_hi() + input.precision, f32::INFINITY)?
         }
         // =, Left
-        OutVersion::Left => Interval::new_closed(
+        OutVersion::Left => MultiInterval::new_closed(
             f32::NEG_INFINITY,
             input.interval.lowest_lo() - input.precision,
         )?,

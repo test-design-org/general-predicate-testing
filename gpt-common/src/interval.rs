@@ -16,14 +16,14 @@ pub enum Boundary {
 
 /// Represents one interval with boundaries, a low value and a high value
 #[derive(PartialEq, Clone)]
-struct OneInterval {
+struct Interval {
     lo_boundary: Boundary,
     lo: f32,
     hi: f32,
     hi_boundary: Boundary,
 }
 
-impl OneInterval {
+impl Interval {
     fn contains_point(&self, point: f32) -> bool {
         (self.lo < point && point < self.hi)
             || (self.lo == point && self.lo_boundary == Boundary::Closed)
@@ -31,8 +31,8 @@ impl OneInterval {
     }
 }
 
-impl Intersectable for OneInterval {
-    fn intersects_with(&self, other: &OneInterval) -> bool {
+impl Intersectable for Interval {
+    fn intersects_with(&self, other: &Interval) -> bool {
         let doesnt_intersect = (self.lo > other.hi || other.lo > self.hi)
             || self.lo == other.hi
                 && (self.lo_boundary == Boundary::Open || other.hi_boundary == Boundary::Open)
@@ -42,14 +42,14 @@ impl Intersectable for OneInterval {
         !doesnt_intersect
     }
 
-    fn intersect(&self, other: &OneInterval) -> Option<OneInterval> {
+    fn intersect(&self, other: &Interval) -> Option<Interval> {
         if !self.intersects_with(other) {
             None
         } else {
             let bigger_lo = if self.lo > other.lo { self } else { other };
             let smaller_hi = if self.hi < other.hi { self } else { other };
 
-            Some(OneInterval {
+            Some(Interval {
                 lo_boundary: bigger_lo.lo_boundary,
                 lo: bigger_lo.lo,
                 hi: smaller_hi.hi,
@@ -59,7 +59,7 @@ impl Intersectable for OneInterval {
     }
 }
 
-impl fmt::Debug for OneInterval {
+impl fmt::Debug for Interval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let lo_boundary = match self.lo_boundary {
             Boundary::Open => "(",
@@ -75,9 +75,9 @@ impl fmt::Debug for OneInterval {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Interval {
+pub struct MultiInterval {
     /// `intervals` is always sorted in ascending order and there are no overlapping intervals
-    intervals: Vec<OneInterval>,
+    intervals: Vec<Interval>,
 }
 
 // TODO: There could be a more pragmatic rust solution
@@ -86,18 +86,18 @@ pub enum IntervalError {
     LoIsGreaterThanHi,
 }
 
-impl Interval {
+impl MultiInterval {
     pub fn new(
         lo_boundary: Boundary,
         lo: f32,
         hi: f32,
         hi_boundary: Boundary,
-    ) -> Result<Interval, IntervalError> {
+    ) -> Result<MultiInterval, IntervalError> {
         if lo > hi {
             Err(IntervalError::LoIsGreaterThanHi)
         } else {
-            Ok(Interval {
-                intervals: vec![OneInterval {
+            Ok(MultiInterval {
+                intervals: vec![Interval {
                     lo_boundary,
                     lo,
                     hi,
@@ -107,8 +107,8 @@ impl Interval {
         }
     }
 
-    pub fn new_closed(lo: f32, hi: f32) -> Result<Interval, IntervalError> {
-        Interval::new(Boundary::Closed, lo, hi, Boundary::Closed)
+    pub fn new_closed(lo: f32, hi: f32) -> Result<MultiInterval, IntervalError> {
+        MultiInterval::new(Boundary::Closed, lo, hi, Boundary::Closed)
     }
 
     pub fn highest_hi(&self) -> f32 {
@@ -140,10 +140,10 @@ impl Interval {
     }
 }
 
-impl Intersectable for Interval {
+impl Intersectable for MultiInterval {
     // TODO: This could be sped up, because the interval Vecs are sorted
     // It could be a step-by-step comparison
-    fn intersects_with(&self, other: &Interval) -> bool {
+    fn intersects_with(&self, other: &MultiInterval) -> bool {
         for x in self.intervals.iter() {
             for y in other.intervals.iter() {
                 if x.intersects_with(y) {
@@ -155,8 +155,8 @@ impl Intersectable for Interval {
         false
     }
 
-    fn intersect(&self, other: &Interval) -> Option<Interval> {
-        let mut intersected_intervals: Vec<OneInterval> = self
+    fn intersect(&self, other: &MultiInterval) -> Option<MultiInterval> {
+        let mut intersected_intervals: Vec<Interval> = self
             .intervals
             .iter()
             .flat_map(|x| other.intervals.iter().map(|y| x.intersect(y)))
@@ -171,7 +171,7 @@ impl Intersectable for Interval {
         if intersected_intervals.is_empty() {
             None
         } else {
-            Some(Interval {
+            Some(MultiInterval {
                 intervals: intersected_intervals,
             })
         }
@@ -180,13 +180,13 @@ impl Intersectable for Interval {
 
 #[cfg(test)]
 mod test {
-    use super::OneInterval;
+    use super::Interval;
     use crate::{
-        interval::{Intersectable, Interval},
+        interval::{Intersectable, MultiInterval},
         parser::interval,
     };
 
-    fn int(input: &str) -> OneInterval {
+    fn int(input: &str) -> Interval {
         let (_, x) = interval(input).unwrap();
         x.intervals.first().unwrap().clone()
     }
@@ -368,9 +368,9 @@ mod test {
         ];
 
         for (a, b, expected_vec) in test_cases {
-            let this = Interval { intervals: a };
-            let that = Interval { intervals: b };
-            let expected = expected_vec.map(|intervals| Interval { intervals });
+            let this = MultiInterval { intervals: a };
+            let that = MultiInterval { intervals: b };
+            let expected = expected_vec.map(|intervals| MultiInterval { intervals });
 
             assert_eq!(
                 this.intersect(&that),

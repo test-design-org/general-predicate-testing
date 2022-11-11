@@ -14,7 +14,7 @@ use nom::sequence::{separated_pair, terminated, tuple};
 use nom::IResult;
 use nom::{branch::alt, character::streaming::char};
 
-use crate::interval::{Boundary, Interval};
+use crate::interval::{Boundary, MultiInterval};
 
 use self::ast::BoolCondition;
 use self::ast::ConstantPosition;
@@ -135,7 +135,7 @@ fn parse_hi_openness(input: &str) -> IResult<&str, Boundary> {
     })(input)
 }
 
-pub fn interval(input: &str) -> IResult<&str, Interval> {
+pub fn interval(input: &str) -> IResult<&str, MultiInterval> {
     map_res(
         tuple((
             terminated(parse_lo_openness, space0),
@@ -145,7 +145,7 @@ pub fn interval(input: &str) -> IResult<&str, Interval> {
             terminated(parse_hi_openness, space0),
         )),
         |(lo_openness, lo, _comma, hi, hi_openness)| {
-            Interval::new(lo_openness, lo, hi, hi_openness)
+            MultiInterval::new(lo_openness, lo, hi, hi_openness)
         },
     )(input)
 }
@@ -309,14 +309,14 @@ mod tests {
             interval("(12.0,Inf]"),
             Ok((
                 "",
-                Interval::new(Boundary::Open, 12.0, f32::INFINITY, Boundary::Closed).unwrap()
+                MultiInterval::new(Boundary::Open, 12.0, f32::INFINITY, Boundary::Closed).unwrap()
             ))
         );
         assert_eq!(
             interval("[   -43   ,    54   )   "),
             Ok((
                 "",
-                Interval::new(Boundary::Closed, -43.0, 54.0, Boundary::Open).unwrap()
+                MultiInterval::new(Boundary::Closed, -43.0, 54.0, Boundary::Open).unwrap()
             ))
         );
         assert!(interval("other").is_err());

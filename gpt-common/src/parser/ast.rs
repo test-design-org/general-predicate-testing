@@ -1,4 +1,4 @@
-use crate::interval::Interval;
+use crate::interval::MultiInterval;
 
 pub enum Type {
     Bool,
@@ -54,7 +54,7 @@ pub struct BinaryCondition<'a> {
 pub struct IntervalCondition<'a> {
     var_name: &'a str,
     interval_op: IntervalOp,
-    interval: Interval,
+    interval: MultiInterval,
 }
 
 pub enum Condition<'a> {

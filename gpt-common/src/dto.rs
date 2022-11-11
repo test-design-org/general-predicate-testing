@@ -1,7 +1,7 @@
 use std::iter::zip;
 
 use crate::{
-    interval::{Intersectable, Interval},
+    interval::{Intersectable, MultiInterval},
     parser::ast::EqOp,
 };
 
@@ -43,7 +43,7 @@ pub enum Expression {
 #[derive(PartialEq, Clone)]
 pub struct IntervalDTO {
     pub expression: Expression,
-    pub interval: Interval,
+    pub interval: MultiInterval,
     pub precision: f32,
     pub is_constant: bool,
 }
