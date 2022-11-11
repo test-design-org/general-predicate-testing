@@ -6,7 +6,7 @@ pub enum Type {
     Float { precision: f32 },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum EqOp {
     Equal,
     NotEqual,

@@ -1,5 +1,13 @@
 use std::fmt;
 
+pub trait Intersectable {
+    fn intersects_with(&self, other: &Self) -> bool;
+
+    fn intersect(&self, other: &Self) -> Option<Self>
+    where
+        Self: Sized;
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Boundary {
     Open,
@@ -21,7 +29,9 @@ impl OneInterval {
             || (self.lo == point && self.lo_boundary == Boundary::Closed)
             || (self.hi == point && self.hi_boundary == Boundary::Closed)
     }
+}
 
+impl Intersectable for OneInterval {
     fn intersects_with(&self, other: &OneInterval) -> bool {
         let doesnt_intersect = (self.lo > other.hi || other.lo > self.hi)
             || self.lo == other.hi
@@ -64,7 +74,7 @@ impl fmt::Debug for OneInterval {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Interval {
     /// `intervals` is always sorted in ascending order and there are no overlapping intervals
     intervals: Vec<OneInterval>,
@@ -97,9 +107,43 @@ impl Interval {
         }
     }
 
+    pub fn new_closed(lo: f32, hi: f32) -> Result<Interval, IntervalError> {
+        Interval::new(Boundary::Closed, lo, hi, Boundary::Closed)
+    }
+
+    pub fn highest_hi(&self) -> f32 {
+        self.intervals
+            .last()
+            .expect("Interval should always contain an interval")
+            .hi
+    }
+
+    pub fn lowest_lo(&self) -> f32 {
+        self.intervals
+            .first()
+            .expect("Interval should always contain an interval")
+            .lo
+    }
+
+    pub fn highest_boundary(&self) -> Boundary {
+        self.intervals
+            .last()
+            .expect("Interval should always contain an interval")
+            .hi_boundary
+    }
+
+    pub fn lowest_boundary(&self) -> Boundary {
+        self.intervals
+            .first()
+            .expect("Interval should always contain an interval")
+            .lo_boundary
+    }
+}
+
+impl Intersectable for Interval {
     // TODO: This could be sped up, because the interval Vecs are sorted
     // It could be a step-by-step comparison
-    pub fn intersects_with(&self, other: &Interval) -> bool {
+    fn intersects_with(&self, other: &Interval) -> bool {
         for x in self.intervals.iter() {
             for y in other.intervals.iter() {
                 if x.intersects_with(y) {
@@ -111,7 +155,7 @@ impl Interval {
         false
     }
 
-    pub fn intersect(&self, other: &Interval) -> Interval {
+    fn intersect(&self, other: &Interval) -> Option<Interval> {
         let mut intersected_intervals: Vec<OneInterval> = self
             .intervals
             .iter()
@@ -119,13 +163,17 @@ impl Interval {
             .filter_map(|x| x)
             .collect();
 
-        intersected_intervals.sort_by(|a, b| {
+        intersected_intervals.sort_unstable_by(|a, b| {
             a.lo.partial_cmp(&b.lo)
                 .expect("f32::NaN should not be the lo value of intervals")
         });
 
-        Interval {
-            intervals: intersected_intervals,
+        if intersected_intervals.is_empty() {
+            None
+        } else {
+            Some(Interval {
+                intervals: intersected_intervals,
+            })
         }
     }
 }
@@ -133,7 +181,10 @@ impl Interval {
 #[cfg(test)]
 mod test {
     use super::OneInterval;
-    use crate::{interval::Interval, parser::interval};
+    use crate::{
+        interval::{Intersectable, Interval},
+        parser::interval,
+    };
 
     fn int(input: &str) -> OneInterval {
         let (_, x) = interval(input).unwrap();
@@ -156,10 +207,7 @@ mod test {
             assert_eq!(
                 interval.contains_point(point),
                 expected,
-                "OneInterval.contains_point failed: {:?}.contains_point({:?}) should be {:?}",
-                interval,
-                point,
-                expected
+                "OneInterval.contains_point failed: {interval:?}.contains_point({point:?}) should be {expected:?}",
             );
         }
     }
@@ -207,16 +255,14 @@ mod test {
             (int("[0, 10)"), int("[20, 30]"), false),
             (int("[0, 10]"), int("(20, 30]"), false),
             (int("[0, 10)"), int("(20, 30]"), false),
+            // TODO: Inf, -Inf
         ];
 
         for (this, that, expected) in test_cases {
             assert_eq!(
                 this.intersects_with(&that),
                 expected,
-                "OneInterval.intersects_with failed: {:?}.intersects_with({:?}) should be {:?}",
-                this,
-                that,
-                expected
+                "OneInterval.intersects_with failed: {this:?}.intersects_with({that:?}) should be {expected:?}",
             );
         }
     }
@@ -264,16 +310,14 @@ mod test {
             (int("[0, 10)"), int("[20, 30]"), None),
             (int("[0, 10]"), int("(20, 30]"), None),
             (int("[0, 10)"), int("(20, 30]"), None),
+            // TODO: Inf, -Inf
         ];
 
         for (this, that, expected) in test_cases {
             assert_eq!(
                 this.intersect(&that),
                 expected,
-                "OneInterval.intersect failed: {:?}.intersect({:?}) should be {:?}",
-                this,
-                that,
-                expected
+                "OneInterval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
             );
         }
     }
@@ -282,61 +326,56 @@ mod test {
     fn test_Interval_intersect() {
         let test_cases = vec![
             // zero elements
-            (vec![], vec![], vec![]),
+            (vec![], vec![], None),
             // one elem - zero elem
-            (vec![int("[0, 10]")], vec![], vec![]),
-            (vec![], vec![int("[0, 10]")], vec![]),
+            (vec![int("[0, 10]")], vec![], None),
+            (vec![], vec![int("[0, 10]")], None),
             // one element, has intersection
             (
                 vec![int("[0, 10]")],
                 vec![int("[5, 20]")],
-                vec![int("[5, 10]")],
+                Some(vec![int("[5, 10]")]),
             ),
             // one element - two elements, has intersection
             (
                 vec![int("[0, 10]")],
                 vec![int("[5, 20]"), int("[100, 200]")],
-                vec![int("[5, 10]")],
+                Some(vec![int("[5, 10]")]),
             ),
             (
                 vec![int("[5, 20]"), int("[100, 200]")],
                 vec![int("[0, 10]")],
-                vec![int("[5, 10]")],
+                Some(vec![int("[5, 10]")]),
             ),
             // contains multiple intervals
             (
                 vec![int("[0, 100]")],
                 vec![int("[10, 20]"), int("[30, 40]")],
-                vec![int("[10, 20]"), int("[30, 40]")],
+                Some(vec![int("[10, 20]"), int("[30, 40]")]),
             ),
             // overlaps with multiple intervals
             (
                 vec![int("[20, 50]")],
                 vec![int("[0, 30]"), int("[40, 60]")],
-                vec![int("[20, 30]"), int("[40, 50]")],
+                Some(vec![int("[20, 30]"), int("[40, 50]")]),
             ),
             // multiple elements
             (
-                vec![int("[0, 10]"), int("[20, 30]"), int("[40, 50]")],
-                vec![int("[0, 10)"), int("[15, 25]"), int("(26, 35]")],
-                vec![int("[0, 10)"), int("[20, 25]"), int("(26, 30]")],
+                vec![int("(-Inf, 10]"), int("[20, 30]"), int("[40, 50]")],
+                vec![int("(-Inf, 10)"), int("[15, 25]"), int("(26, 35]")],
+                Some(vec![int("(-Inf, 10)"), int("[20, 25]"), int("(26, 30]")]),
             ),
         ];
 
         for (a, b, expected_vec) in test_cases {
             let this = Interval { intervals: a };
             let that = Interval { intervals: b };
-            let expected = Interval {
-                intervals: expected_vec,
-            };
+            let expected = expected_vec.map(|intervals| Interval { intervals });
 
             assert_eq!(
                 this.intersect(&that),
                 expected,
-                "Interval.intersect failed: {:?}.intersect({:?}) should be {:?}",
-                this,
-                that,
-                expected
+                "Interval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
             );
         }
     }
