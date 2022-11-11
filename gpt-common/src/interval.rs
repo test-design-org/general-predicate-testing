@@ -51,6 +51,15 @@ impl Interval {
     pub fn new_closed(lo: f32, hi: f32) -> Result<Interval, IntervalError> {
         Interval::new(Boundary::Closed, lo, hi, Boundary::Closed)
     }
+
+    pub fn new_closed_point(point: f32) -> Interval {
+        Interval {
+            lo_boundary: Boundary::Closed,
+            lo: point,
+            hi: point,
+            hi_boundary: Boundary::Closed,
+        }
+    }
 }
 
 impl Intersectable for Interval {

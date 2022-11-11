@@ -5,11 +5,17 @@ use crate::{
     parser::ast::EqOp,
 };
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
+pub enum BoolExpression {
+    IsTrue,
+    IsFalse,
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub struct BoolDTO {
-    expression: EqOp,
-    bool_val: bool,
-    is_constant: bool,
+    pub expression: BoolExpression,
+    pub bool_val: bool,
+    pub is_constant: bool,
 }
 
 impl Intersectable for BoolDTO {
@@ -26,7 +32,7 @@ impl Intersectable for BoolDTO {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Expression {
     LessThan,
     LessThanOrEqualTo,
@@ -40,7 +46,7 @@ pub enum Expression {
     //   MissingVariable,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct IntervalDTO {
     pub expression: Expression,
     pub interval: Interval,
@@ -64,7 +70,7 @@ impl Intersectable for IntervalDTO {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Input {
     MissingVariable,
     Bool(BoolDTO),
@@ -87,7 +93,7 @@ impl Intersectable for Input {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct NTuple {
     pub inputs: Vec<Input>,
 }
