@@ -16,11 +16,11 @@ pub enum Boundary {
 
 /// Represents one interval with boundaries, a low value and a high value
 #[derive(PartialEq, Clone)]
-struct Interval {
-    lo_boundary: Boundary,
-    lo: f32,
-    hi: f32,
-    hi_boundary: Boundary,
+pub struct Interval {
+    pub lo_boundary: Boundary,
+    pub lo: f32,
+    pub hi: f32,
+    pub hi_boundary: Boundary,
 }
 
 impl Interval {
@@ -28,6 +28,28 @@ impl Interval {
         (self.lo < point && point < self.hi)
             || (self.lo == point && self.lo_boundary == Boundary::Closed)
             || (self.hi == point && self.hi_boundary == Boundary::Closed)
+    }
+
+    pub fn new(
+        lo_boundary: Boundary,
+        lo: f32,
+        hi: f32,
+        hi_boundary: Boundary,
+    ) -> Result<Interval, IntervalError> {
+        if lo > hi {
+            Err(IntervalError::LoIsGreaterThanHi)
+        } else {
+            Ok(Interval {
+                lo_boundary,
+                lo,
+                hi,
+                hi_boundary,
+            })
+        }
+    }
+
+    pub fn new_closed(lo: f32, hi: f32) -> Result<Interval, IntervalError> {
+        Interval::new(Boundary::Closed, lo, hi, Boundary::Closed)
     }
 }
 
@@ -93,18 +115,9 @@ impl MultiInterval {
         hi: f32,
         hi_boundary: Boundary,
     ) -> Result<MultiInterval, IntervalError> {
-        if lo > hi {
-            Err(IntervalError::LoIsGreaterThanHi)
-        } else {
-            Ok(MultiInterval {
-                intervals: vec![Interval {
-                    lo_boundary,
-                    lo,
-                    hi,
-                    hi_boundary,
-                }],
-            })
-        }
+        Ok(MultiInterval {
+            intervals: vec![Interval::new(lo_boundary, lo, hi, hi_boundary)?],
+        })
     }
 
     pub fn new_closed(lo: f32, hi: f32) -> Result<MultiInterval, IntervalError> {

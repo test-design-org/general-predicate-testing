@@ -1,3 +1,4 @@
+use crate::interval::Interval;
 use crate::util::UniquesVec;
 
 use crate::{
@@ -85,9 +86,9 @@ enum OutVersion {
 fn Out(input: &IntervalDTO, version: OutVersion) -> Result<Input, IntervalError> {
     let interval = match version {
         // <, <=, Interval Right
-        OutVersion::IntervalRight => MultiInterval::new_closed(
-            input.interval.highest_hi()
-                + if input.interval.highest_boundary() == Boundary::Open {
+        OutVersion::IntervalRight => Interval::new_closed(
+            input.interval.hi
+                + if input.interval.hi_boundary == Boundary::Open {
                     1.0
                 } else {
                     2.0
@@ -95,10 +96,10 @@ fn Out(input: &IntervalDTO, version: OutVersion) -> Result<Input, IntervalError>
             f32::INFINITY,
         )?,
         // >, =>, Interval Left
-        OutVersion::IntervalLeft => MultiInterval::new_closed(
+        OutVersion::IntervalLeft => Interval::new_closed(
             f32::NEG_INFINITY,
-            input.interval.lowest_lo()
-                - if input.interval.lowest_boundary() == Boundary::Open {
+            input.interval.lo
+                - if input.interval.lo_boundary == Boundary::Open {
                     1.0
                 } else {
                     2.0
@@ -106,13 +107,12 @@ fn Out(input: &IntervalDTO, version: OutVersion) -> Result<Input, IntervalError>
         )?,
         // =, Right
         OutVersion::Right => {
-            MultiInterval::new_closed(input.interval.highest_hi() + input.precision, f32::INFINITY)?
+            Interval::new_closed(input.interval.hi + input.precision, f32::INFINITY)?
         }
         // =, Left
-        OutVersion::Left => MultiInterval::new_closed(
-            f32::NEG_INFINITY,
-            input.interval.lowest_lo() - input.precision,
-        )?,
+        OutVersion::Left => {
+            Interval::new_closed(f32::NEG_INFINITY, input.interval.lo - input.precision)?
+        }
     };
 
     Ok(Input::Interval(IntervalDTO {
