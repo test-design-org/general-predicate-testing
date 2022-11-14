@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fmt::format;
 use std::num::ParseIntError;
 
 use nom::bytes::complete::tag;
@@ -8,22 +10,35 @@ use nom::character::complete::{alphanumeric0, digit1, space0};
 use nom::character::is_alphabetic;
 use nom::combinator::fail;
 use nom::combinator::{complete, cond, map, map_res, opt, peek, recognize};
+use nom::error;
+use nom::error::ParseError;
 use nom::multi::count;
+use nom::multi::many0;
+use nom::multi::separated_list1;
 use nom::number::complete::recognize_float;
 use nom::sequence::{separated_pair, terminated, tuple};
 use nom::IResult;
+use nom::Parser;
 use nom::{branch::alt, character::streaming::char};
 
+use crate::interval;
 use crate::interval::{Boundary, MultiInterval};
 
+use self::ast::BinaryCondition;
 use self::ast::BoolCondition;
 use self::ast::ConstantPosition;
+use self::ast::IntervalCondition;
 use self::ast::{BinaryOp, BoolOp, Condition, EqOp, IntervalOp};
 
 pub mod ast;
 
 fn comment(input: &str) -> IResult<&str, ()> {
     todo!("Implement comment parsing")
+}
+
+fn whitespace(input: &str) -> IResult<&str, ()> {
+    // many0(alt((space0(input), comment)))(input)
+    map(space0, |_| ())(input)
 }
 
 fn float(input: &str) -> IResult<&str, f32> {
@@ -150,8 +165,6 @@ pub fn interval(input: &str) -> IResult<&str, MultiInterval> {
     )(input)
 }
 
-// TODO: Cond, Conditions, if-elseif-else, vardecl, feature
-
 fn parse_alphabetic(input: &str) -> IResult<&str, char> {
     let (i, c) = anychar(input)?;
     if is_alphabetic(c as u8) {
@@ -161,13 +174,32 @@ fn parse_alphabetic(input: &str) -> IResult<&str, char> {
     }
 }
 
+fn keywords() -> HashSet<&'static str> {
+    HashSet::from(["if", "else", "true", "false"])
+}
+
 fn var_name(input: &str) -> IResult<&str, &str> {
-    recognize(tuple((alt((parse_alphabetic, char('_'))), alphanumeric0)))(input)
+    map_res(
+        recognize(tuple((alt((parse_alphabetic, char('_'))), alphanumeric0))),
+        |var_name| {
+            if keywords().contains(var_name) {
+                Err(format!(
+                    "Cannot name a variable '{var_name}', it is a reserved keyword!"
+                ))
+            } else {
+                Ok(var_name)
+            }
+        },
+    )(input)
 }
 
 fn condition_bool_lhs(input: &str) -> IResult<&str, Condition> {
     map(
-        tuple((boolean, eq_op, var_name)),
+        tuple((
+            terminated(boolean, whitespace),
+            terminated(eq_op, whitespace),
+            terminated(var_name, whitespace),
+        )),
         |(constant, eq_op, var_name)| {
             Condition::Bool(BoolCondition {
                 var_name,
@@ -177,9 +209,14 @@ fn condition_bool_lhs(input: &str) -> IResult<&str, Condition> {
         },
     )(input)
 }
+
 fn condition_bool_rhs(input: &str) -> IResult<&str, Condition> {
     map(
-        tuple((var_name, eq_op, boolean)),
+        tuple((
+            terminated(var_name, whitespace),
+            terminated(eq_op, whitespace),
+            terminated(boolean, whitespace),
+        )),
         |(var_name, eq_op, constant)| {
             Condition::Bool(BoolCondition {
                 var_name,
@@ -190,13 +227,86 @@ fn condition_bool_rhs(input: &str) -> IResult<&str, Condition> {
     )(input)
 }
 
-fn condition(input: &str) -> IResult<&str, Condition> {
-    todo!()
+fn condition_binary_lhs(input: &str) -> IResult<&str, Condition> {
+    map(
+        tuple((
+            terminated(number, whitespace),
+            terminated(binary_op, whitespace),
+            terminated(var_name, whitespace),
+        )),
+        |(constant, binary_op, var_name)| {
+            Condition::Binary(BinaryCondition {
+                var_name,
+                constant,
+                constant_position: ConstantPosition::LeftHandSide,
+                binary_op: binary_op.flip(),
+            })
+        },
+    )(input)
 }
+
+fn condition_binary_rhs(input: &str) -> IResult<&str, Condition> {
+    map(
+        tuple((
+            terminated(var_name, whitespace),
+            terminated(binary_op, whitespace),
+            terminated(number, whitespace),
+        )),
+        |(var_name, binary_op, constant)| {
+            Condition::Binary(BinaryCondition {
+                var_name,
+                constant,
+                constant_position: ConstantPosition::RightHandSide,
+                binary_op,
+            })
+        },
+    )(input)
+}
+
+fn condition_interval(input: &str) -> IResult<&str, Condition> {
+    map(
+        tuple((
+            terminated(var_name, whitespace),
+            terminated(interval_op, whitespace),
+            terminated(interval, whitespace),
+        )),
+        |(var_name, interval_op, interval)| {
+            Condition::Interval(IntervalCondition {
+                var_name,
+                interval_op,
+                interval,
+            })
+        },
+    )(input)
+}
+
+fn condition(input: &str) -> IResult<&str, Condition> {
+    alt((
+        condition_binary_lhs,
+        condition_binary_rhs,
+        condition_bool_lhs,
+        condition_bool_rhs,
+        condition_interval,
+    ))(input)
+}
+
+fn conditions(input: &str) -> IResult<&str, Vec<Condition>> {
+    separated_list1(terminated(bool_op, whitespace), condition)(input)
+}
+
+// TODO: if-elseif-else, vardecl, feature
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_whitespace() {
+        assert_eq!(whitespace("     "), Ok(("", ())));
+        assert_eq!(whitespace("     asd "), Ok(("asd ", ())));
+        assert_eq!(whitespace("qwe"), Ok(("qwe", ())));
+        assert_eq!(whitespace(""), Ok(("", ())));
+    }
 
     #[test]
     fn test_int() {
@@ -337,5 +447,348 @@ mod tests {
         assert_eq!(var_name("some123"), Ok(("", "some123")));
         assert_eq!(var_name("i18n"), Ok(("", "i18n")));
         assert!(var_name("9asd").is_err());
+
+        assert!(var_name("if").is_err());
+        assert!(var_name("else").is_err());
+        assert!(var_name("true").is_err());
+        assert!(var_name("false").is_err());
+    }
+
+    #[test]
+    fn test_condition_bool_lhs() {
+        assert_eq!(
+            condition_bool_lhs("true = x"),
+            Ok((
+                "",
+                Condition::Bool(BoolCondition {
+                    var_name: "x",
+                    constant: true,
+                    eq_op: EqOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition_bool_lhs("false=foo"),
+            Ok((
+                "",
+                Condition::Bool(BoolCondition {
+                    var_name: "foo",
+                    constant: false,
+                    eq_op: EqOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition_bool_lhs("false!=foo"),
+            Ok((
+                "",
+                Condition::Bool(BoolCondition {
+                    var_name: "foo",
+                    constant: false,
+                    eq_op: EqOp::NotEqual
+                })
+            ))
+        );
+        assert_eq!(
+            condition_bool_lhs("true   =   y) asd"),
+            Ok((
+                ") asd",
+                Condition::Bool(BoolCondition {
+                    var_name: "y",
+                    constant: true,
+                    eq_op: EqOp::Equal
+                })
+            ))
+        );
+        assert!(condition_bool_lhs("9asd").is_err());
+        assert!(condition_bool_lhs("y not foo").is_err());
+        assert!(condition_bool_lhs("false = false").is_err());
+        assert!(condition_bool_lhs("true = true").is_err());
+        assert!(condition_bool_lhs("x = true").is_err());
+        assert!(condition_bool_lhs("false =").is_err());
+    }
+
+    #[test]
+    fn test_condition_bool_rhs() {
+        assert_eq!(
+            condition_bool_rhs("x = true"),
+            Ok((
+                "",
+                Condition::Bool(BoolCondition {
+                    var_name: "x",
+                    constant: true,
+                    eq_op: EqOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition_bool_rhs("foo=false"),
+            Ok((
+                "",
+                Condition::Bool(BoolCondition {
+                    var_name: "foo",
+                    constant: false,
+                    eq_op: EqOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition_bool_rhs("foo!=false"),
+            Ok((
+                "",
+                Condition::Bool(BoolCondition {
+                    var_name: "foo",
+                    constant: false,
+                    eq_op: EqOp::NotEqual
+                })
+            ))
+        );
+        assert_eq!(
+            condition_bool_rhs("y   =   true) asd"),
+            Ok((
+                ") asd",
+                Condition::Bool(BoolCondition {
+                    var_name: "y",
+                    constant: true,
+                    eq_op: EqOp::Equal
+                })
+            ))
+        );
+        assert!(condition_bool_rhs("9asd").is_err());
+        assert!(condition_bool_rhs("y not foo").is_err());
+        assert!(condition_bool_rhs("false = false").is_err());
+        assert!(condition_bool_rhs("true = true").is_err());
+        assert!(condition_bool_rhs("true = x").is_err());
+        assert!(condition_bool_rhs("x =").is_err());
+    }
+
+    #[test]
+    fn test_condition_binary_lhs() {
+        assert_eq!(
+            condition_binary_lhs("10.32 = x"),
+            Ok((
+                "",
+                Condition::Binary(BinaryCondition {
+                    var_name: "x",
+                    constant_position: ConstantPosition::LeftHandSide,
+                    constant: 10.32,
+                    binary_op: BinaryOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition_binary_lhs("3<=foo"),
+            Ok((
+                "",
+                Condition::Binary(BinaryCondition {
+                    var_name: "foo",
+                    constant_position: ConstantPosition::LeftHandSide,
+                    constant: 3.0,
+                    binary_op: BinaryOp::GreaterThanEqualTo
+                })
+            ))
+        );
+        assert_eq!(
+            condition_binary_lhs("0.1   >    qwe; asd"),
+            Ok((
+                "; asd",
+                Condition::Binary(BinaryCondition {
+                    var_name: "qwe",
+                    constant_position: ConstantPosition::LeftHandSide,
+                    constant: 0.1,
+                    binary_op: BinaryOp::LessThan
+                })
+            ))
+        );
+        assert!(condition_binary_lhs("9asd").is_err());
+        assert!(condition_binary_lhs("y not foo").is_err());
+        assert!(condition_binary_lhs("x = 123.0").is_err());
+        assert!(condition_binary_lhs("true = x").is_err());
+        assert!(condition_binary_lhs("123 = 123").is_err());
+        assert!(condition_binary_lhs("123.0 >=").is_err());
+    }
+
+    #[test]
+    fn test_condition_binary_rhs() {
+        assert_eq!(
+            condition_binary_rhs("x = 10.32"),
+            Ok((
+                "",
+                Condition::Binary(BinaryCondition {
+                    var_name: "x",
+                    constant_position: ConstantPosition::RightHandSide,
+                    constant: 10.32,
+                    binary_op: BinaryOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition_binary_rhs("foo<=3"),
+            Ok((
+                "",
+                Condition::Binary(BinaryCondition {
+                    var_name: "foo",
+                    constant_position: ConstantPosition::RightHandSide,
+                    constant: 3.0,
+                    binary_op: BinaryOp::LessThanEqualTo
+                })
+            ))
+        );
+        assert_eq!(
+            condition_binary_rhs("qwe   <=    0.1; asd"),
+            Ok((
+                "; asd",
+                Condition::Binary(BinaryCondition {
+                    var_name: "qwe",
+                    constant_position: ConstantPosition::RightHandSide,
+                    constant: 0.1,
+                    binary_op: BinaryOp::LessThanEqualTo
+                })
+            ))
+        );
+        assert!(condition_binary_rhs("9asd").is_err());
+        assert!(condition_binary_rhs("y not foo").is_err());
+        assert!(condition_binary_rhs("123.0 = x").is_err());
+        assert!(condition_binary_rhs("x = true").is_err());
+        assert!(condition_binary_rhs("123 = 123").is_err());
+        assert!(condition_binary_rhs("x >=").is_err());
+    }
+
+    #[test]
+    fn test_condition_interval() {
+        assert_eq!(
+            condition_interval("x in [0, 10]"),
+            Ok((
+                "",
+                Condition::Interval(IntervalCondition {
+                    var_name: "x",
+                    interval_op: IntervalOp::In,
+                    interval: MultiInterval::new(Boundary::Closed, 0.0, 10.0, Boundary::Closed)
+                        .unwrap()
+                })
+            ))
+        );
+        assert_eq!(
+            condition_interval("y in[0, 10]  asd"),
+            Ok((
+                "asd",
+                Condition::Interval(IntervalCondition {
+                    var_name: "y",
+                    interval_op: IntervalOp::In,
+                    interval: MultiInterval::new(Boundary::Closed, 0.0, 10.0, Boundary::Closed)
+                        .unwrap()
+                })
+            ))
+        );
+        assert_eq!(
+            condition_interval("foo not in(0,0)) qwe"),
+            Ok((
+                ") qwe",
+                Condition::Interval(IntervalCondition {
+                    var_name: "foo",
+                    interval_op: IntervalOp::NotIn,
+                    interval: MultiInterval::new(Boundary::Open, 0.0, 0.0, Boundary::Open).unwrap()
+                })
+            ))
+        );
+        assert!(condition_interval("xin[0,10]").is_err());
+        assert!(condition_interval("x not [0,10]").is_err());
+        assert!(condition_interval("x not in [0,").is_err());
+        assert!(condition_interval("[0, 10]").is_err());
+        assert!(condition_interval("in [0, 10]").is_err());
+        assert!(condition_interval(" in [0, 10]").is_err());
+    }
+
+    #[test]
+    fn test_condition() {
+        assert_eq!(
+            condition("true = x"),
+            Ok((
+                "",
+                Condition::Bool(BoolCondition {
+                    var_name: "x",
+                    constant: true,
+                    eq_op: EqOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition("x = true"),
+            Ok((
+                "",
+                Condition::Bool(BoolCondition {
+                    var_name: "x",
+                    constant: true,
+                    eq_op: EqOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition("10.32 = x"),
+            Ok((
+                "",
+                Condition::Binary(BinaryCondition {
+                    var_name: "x",
+                    constant_position: ConstantPosition::LeftHandSide,
+                    constant: 10.32,
+                    binary_op: BinaryOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition("x = 10.32"),
+            Ok((
+                "",
+                Condition::Binary(BinaryCondition {
+                    var_name: "x",
+                    constant_position: ConstantPosition::RightHandSide,
+                    constant: 10.32,
+                    binary_op: BinaryOp::Equal
+                })
+            ))
+        );
+        assert_eq!(
+            condition("x in [0, 10]"),
+            Ok((
+                "",
+                Condition::Interval(IntervalCondition {
+                    var_name: "x",
+                    interval_op: IntervalOp::In,
+                    interval: MultiInterval::new(Boundary::Closed, 0.0, 10.0, Boundary::Closed)
+                        .unwrap()
+                })
+            ))
+        );
+    }
+
+    #[test]
+    fn test_conditions() {
+        let x_eq_true = Condition::Bool(BoolCondition {
+            var_name: "x",
+            constant: true,
+            eq_op: EqOp::Equal,
+        });
+
+        let y_greater_0 = Condition::Binary(BinaryCondition {
+            var_name: "y",
+            constant_position: ConstantPosition::LeftHandSide,
+            constant: 0.0,
+            binary_op: BinaryOp::GreaterThan,
+        });
+
+        assert_eq!(conditions("true = x"), Ok(("", vec![x_eq_true.clone()])));
+        assert_eq!(
+            conditions("true = x && 0 < y"),
+            Ok(("", vec![x_eq_true.clone(), y_greater_0.clone()]))
+        );
+        assert_eq!(
+            conditions("true = x && 0 < y && 0 < y    asd"),
+            Ok((
+                "asd",
+                vec![x_eq_true.clone(), y_greater_0.clone(), y_greater_0.clone()]
+            ))
+        );
+        assert!(conditions("").is_err());
+        assert!(conditions("true = x &&").is_err());
     }
 }
