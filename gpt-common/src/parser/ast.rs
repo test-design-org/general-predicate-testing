@@ -95,21 +95,26 @@ pub struct VarNode<'a> {
     var_type: Type,
 }
 
+#[derive(PartialEq, Debug)]
 pub struct IfNode<'a> {
-    conditions: ConditionsNode<'a>,
-    body: Option<Vec<IfNode<'a>>>,
-    else_if: Option<Vec<ElseIfNode<'a>>>,
-    else_node: Option<ElseNode<'a>>,
+    pub conditions: ConditionsNode<'a>,
+    pub body: Option<Vec<IfNode<'a>>>,
+    pub else_if: Option<Vec<ElseIfNode<'a>>>,
+    pub else_node: Option<ElseNode<'a>>,
 }
 
+#[derive(PartialEq, Debug)]
 pub struct ElseIfNode<'a> {
-    conditions: ConditionsNode<'a>,
+    pub conditions: ConditionsNode<'a>,
+    pub body: Option<Vec<IfNode<'a>>>,
 }
 
+#[derive(PartialEq, Debug)]
 pub struct ElseNode<'a> {
-    body: Vec<IfNode<'a>>,
+    pub body: Vec<IfNode<'a>>,
 }
 
+#[derive(PartialEq, Debug)]
 pub struct ConditionsNode<'a> {
-    conditions: Vec<Condition<'a>>,
+    pub conditions: Vec<Condition<'a>>,
 }

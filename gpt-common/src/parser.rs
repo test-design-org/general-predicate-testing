@@ -9,11 +9,13 @@ use nom::character::complete::anychar;
 use nom::character::complete::{alphanumeric0, digit1, space0};
 use nom::character::is_alphabetic;
 use nom::combinator::fail;
+use nom::combinator::value;
 use nom::combinator::{complete, cond, map, map_res, opt, peek, recognize};
 use nom::error;
 use nom::error::ParseError;
 use nom::multi::count;
 use nom::multi::many0;
+use nom::multi::many1;
 use nom::multi::separated_list1;
 use nom::number::complete::recognize_float;
 use nom::sequence::{separated_pair, terminated, tuple};
@@ -26,7 +28,11 @@ use crate::interval::{Boundary, MultiInterval};
 
 use self::ast::BinaryCondition;
 use self::ast::BoolCondition;
+use self::ast::ConditionsNode;
 use self::ast::ConstantPosition;
+use self::ast::ElseIfNode;
+use self::ast::ElseNode;
+use self::ast::IfNode;
 use self::ast::IntervalCondition;
 use self::ast::{BinaryOp, BoolOp, Condition, EqOp, IntervalOp};
 
@@ -37,8 +43,8 @@ fn comment(input: &str) -> IResult<&str, ()> {
 }
 
 fn whitespace(input: &str) -> IResult<&str, ()> {
-    // many0(alt((space0(input), comment)))(input)
-    map(space0, |_| ())(input)
+    let one_whitespace = complete(alt((char('\n'), char(' '), char('\t'))));
+    value((), many0(one_whitespace))(input)
 }
 
 fn float(input: &str) -> IResult<&str, f32> {
@@ -290,8 +296,70 @@ fn condition(input: &str) -> IResult<&str, Condition> {
     ))(input)
 }
 
-fn conditions(input: &str) -> IResult<&str, Vec<Condition>> {
-    separated_list1(terminated(bool_op, whitespace), condition)(input)
+fn conditions(input: &str) -> IResult<&str, ConditionsNode> {
+    map(
+        separated_list1(terminated(bool_op, whitespace), condition),
+        |conditions| ConditionsNode { conditions },
+    )(input)
+}
+
+fn if_statement(input: &str) -> IResult<&str, IfNode> {
+    let (input, _) = terminated(tag("if"), whitespace)(input)?;
+    let (input, _) = terminated(tag("("), whitespace)(input)?;
+    let (input, conditions) = conditions(input)?;
+    let (input, _) = terminated(tag(")"), whitespace)(input)?;
+    let (input, body) = opt(map(
+        tuple((
+            terminated(tag("{"), whitespace),
+            many0(if_statement),
+            terminated(tag("}"), whitespace),
+        )),
+        |(_, body, _)| body,
+    ))(input)?;
+    let (input, else_if_statements) = opt(many1(else_if_statement))(input)?;
+    let (input, else_statement) = opt(else_statement)(input)?;
+
+    let if_node = IfNode {
+        body,
+        conditions: conditions,
+        else_if: else_if_statements,
+        else_node: else_statement,
+    };
+
+    Ok((input, if_node))
+}
+
+fn else_if_statement(input: &str) -> IResult<&str, ElseIfNode> {
+    let (input, _) = terminated(tag("else"), whitespace)(input)?;
+    let (input, _) = terminated(tag("if"), whitespace)(input)?;
+    let (input, _) = terminated(tag("("), whitespace)(input)?;
+    let (input, conditions) = conditions(input)?;
+    let (input, _) = terminated(tag(")"), whitespace)(input)?;
+    let (input, body) = opt(map(
+        tuple((
+            terminated(tag("{"), whitespace),
+            many0(if_statement),
+            terminated(tag("}"), whitespace),
+        )),
+        |(_, body, _)| body,
+    ))(input)?;
+
+    let else_if_node = ElseIfNode { conditions, body };
+
+    Ok((input, else_if_node))
+}
+
+fn else_statement(input: &str) -> IResult<&str, ElseNode> {
+    let (input, _) = terminated(tag("else"), whitespace)(input)?;
+    let (input, _) = terminated(tag("{"), whitespace)(input)?;
+    let (input, if_statements) = many0(if_statement)(input)?;
+    let (input, _) = terminated(tag("}"), whitespace)(input)?;
+
+    let else_node = ElseNode {
+        body: if_statements,
+    };
+
+    Ok((input, else_node))
 }
 
 // TODO: if-elseif-else, vardecl, feature
@@ -306,6 +374,7 @@ mod tests {
         assert_eq!(whitespace("     asd "), Ok(("asd ", ())));
         assert_eq!(whitespace("qwe"), Ok(("qwe", ())));
         assert_eq!(whitespace(""), Ok(("", ())));
+        assert_eq!(whitespace("\n\t\n\t\t  \t  \n"), Ok(("", ())));
     }
 
     #[test]
@@ -776,19 +845,86 @@ mod tests {
             binary_op: BinaryOp::GreaterThan,
         });
 
-        assert_eq!(conditions("true = x"), Ok(("", vec![x_eq_true.clone()])));
+        assert_eq!(
+            conditions("true = x"),
+            Ok((
+                "",
+                ConditionsNode {
+                    conditions: vec![x_eq_true.clone()]
+                }
+            ))
+        );
         assert_eq!(
             conditions("true = x && 0 < y"),
-            Ok(("", vec![x_eq_true.clone(), y_greater_0.clone()]))
+            Ok((
+                "",
+                ConditionsNode {
+                    conditions: vec![x_eq_true.clone(), y_greater_0.clone()]
+                }
+            ))
         );
         assert_eq!(
             conditions("true = x && 0 < y && 0 < y    asd"),
             Ok((
                 "asd",
-                vec![x_eq_true.clone(), y_greater_0.clone(), y_greater_0.clone()]
+                ConditionsNode {
+                    conditions: vec![x_eq_true.clone(), y_greater_0.clone(), y_greater_0.clone()]
+                }
             ))
         );
         assert!(conditions("").is_err());
         assert!(conditions("true = x &&").is_err());
+    }
+
+    #[test]
+    fn test_if_statement() {
+        assert_eq!(
+            if_statement(
+                "
+            if (x >= 5 && y in (0, 10)) {
+                if (x = true)
+            } else if (x < 4 && y > 6)
+            else {
+                if (x != false)
+            }   qwe
+        "
+                .trim()
+            ),
+            Ok((
+                "qwe",
+                IfNode {
+                    conditions: conditions("x >= 5 && y in (0, 10)").unwrap().1,
+                    body: Some(vec![IfNode {
+                        conditions: conditions("x = true").unwrap().1,
+                        body: None,
+                        else_if: None,
+                        else_node: None
+                    }]),
+                    else_if: Some(vec![ElseIfNode {
+                        conditions: conditions("x < 4 && y > 6").unwrap().1,
+                        body: None
+                    }]),
+                    else_node: Some(ElseNode {
+                        body: vec![IfNode {
+                            conditions: conditions("x != false").unwrap().1,
+                            body: None,
+                            else_if: None,
+                            else_node: None
+                        }]
+                    })
+                }
+            ))
+        )
+        // TODO
+    }
+
+    #[test]
+    fn test_else_if_statement() {
+        // TODO
+    }
+
+    #[test]
+    fn test_else_statement() {
+        // TODO
     }
 }
