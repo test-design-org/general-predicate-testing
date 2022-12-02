@@ -1,9 +1,20 @@
 use crate::interval::MultiInterval;
 
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Type {
     Bool,
     Integer,
     Float { precision: f32 },
+}
+
+impl Type {
+    pub fn get_precision(&self) -> Option<f32> {
+        match self {
+            Type::Bool => None,
+            Type::Integer => Some(1.0),
+            Type::Float { precision } => Some(*precision),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -84,15 +95,16 @@ pub enum Condition<'a> {
     Interval(IntervalCondition<'a>),
 }
 
+#[derive(PartialEq, Debug)]
 pub struct FeatureNode<'a> {
-    variables: Vec<VarNode<'a>>,
-    if_statements: Vec<IfNode<'a>>,
-    features: Vec<FeatureNode<'a>>,
+    pub variables: Vec<VarNode<'a>>,
+    pub if_statements: Vec<IfNode<'a>>,
 }
 
+#[derive(PartialEq, Debug)]
 pub struct VarNode<'a> {
-    var_name: &'a str,
-    var_type: Type,
+    pub var_name: &'a str,
+    pub var_type: Type,
 }
 
 #[derive(PartialEq, Debug)]

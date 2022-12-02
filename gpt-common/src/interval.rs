@@ -15,7 +15,7 @@ pub enum Boundary {
 }
 
 /// Represents one interval with boundaries, a low value and a high value
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Copy)]
 pub struct Interval {
     pub lo_boundary: Boundary,
     pub lo: f32,
@@ -159,6 +159,10 @@ impl MultiInterval {
             .first()
             .expect("Interval should always contain an interval")
             .lo_boundary
+    }
+
+    pub fn DONOTUSE_get_interval(&self) -> Interval {
+        self.intervals[0]
     }
 }
 

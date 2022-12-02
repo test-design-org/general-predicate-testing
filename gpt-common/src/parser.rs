@@ -5,9 +5,11 @@ use std::num::ParseIntError;
 
 use nom::bytes::complete::tag;
 use nom::bytes::complete::take;
+use nom::bytes::complete::take_while;
 use nom::character::complete::anychar;
 use nom::character::complete::{alphanumeric0, digit1, space0};
 use nom::character::is_alphabetic;
+use nom::character::is_alphanumeric;
 use nom::combinator::fail;
 use nom::combinator::value;
 use nom::combinator::{complete, cond, map, map_res, opt, peek, recognize};
@@ -32,11 +34,19 @@ use self::ast::ConditionsNode;
 use self::ast::ConstantPosition;
 use self::ast::ElseIfNode;
 use self::ast::ElseNode;
+use self::ast::FeatureNode;
 use self::ast::IfNode;
 use self::ast::IntervalCondition;
+use self::ast::Type;
+use self::ast::VarNode;
 use self::ast::{BinaryOp, BoolOp, Condition, EqOp, IntervalOp};
 
+use super::dto::NTuple;
+
 pub mod ast;
+mod ast_to_ir;
+mod ir;
+mod ir_to_ntuple;
 
 fn comment(input: &str) -> IResult<&str, ()> {
     todo!("Implement comment parsing")
@@ -180,13 +190,25 @@ fn parse_alphabetic(input: &str) -> IResult<&str, char> {
     }
 }
 
+fn parse_alphanumberic_or_underscore(input: &str) -> IResult<&str, char> {
+    let (i, c) = anychar(input)?;
+    if is_alphanumeric(c as u8) || c == '_' {
+        Ok((i, c))
+    } else {
+        fail(input)
+    }
+}
+
 fn keywords() -> HashSet<&'static str> {
     HashSet::from(["if", "else", "true", "false"])
 }
 
 fn var_name(input: &str) -> IResult<&str, &str> {
     map_res(
-        recognize(tuple((alt((parse_alphabetic, char('_'))), alphanumeric0))),
+        recognize(tuple((
+            alt((parse_alphabetic, char('_'))),
+            many0(parse_alphanumberic_or_underscore),
+        ))),
         |var_name| {
             if keywords().contains(var_name) {
                 Err(format!(
@@ -245,7 +267,7 @@ fn condition_binary_lhs(input: &str) -> IResult<&str, Condition> {
                 var_name,
                 constant,
                 constant_position: ConstantPosition::LeftHandSide,
-                binary_op: binary_op.flip(),
+                binary_op,
             })
         },
     )(input)
@@ -362,7 +384,98 @@ fn else_statement(input: &str) -> IResult<&str, ElseNode> {
     Ok((input, else_node))
 }
 
-// TODO: if-elseif-else, vardecl, feature
+// TODO: vardecl, feature
+
+fn parse_float_type(input: &str) -> IResult<&str, Type> {
+    let (input, _) = terminated(tag("num"), whitespace)(input)?;
+    let (input, _) = terminated(tag("("), whitespace)(input)?;
+    let (input, precision) = terminated(float, whitespace)(input)?;
+    let (input, _) = terminated(tag(")"), whitespace)(input)?;
+
+    Ok((input, Type::Float { precision }))
+}
+
+fn parse_bool_type(input: &str) -> IResult<&str, Type> {
+    let (input, _) = terminated(tag("bool"), whitespace)(input)?;
+
+    Ok((input, Type::Bool))
+}
+
+fn parse_int_type(input: &str) -> IResult<&str, Type> {
+    let (input, _) = terminated(tag("int"), whitespace)(input)?;
+
+    Ok((input, Type::Integer))
+}
+
+fn parse_simple_num_type(input: &str) -> IResult<&str, Type> {
+    let (input, _) = terminated(tag("num"), whitespace)(input)?;
+
+    // TODO: This should be a default num precision somewhere
+    Ok((input, Type::Float { precision: 0.01 }))
+}
+
+fn parse_type(input: &str) -> IResult<&str, Type> {
+    alt((
+        parse_bool_type,
+        parse_int_type,
+        complete(parse_float_type),
+        parse_simple_num_type,
+    ))(input)
+}
+
+fn var_declaration(input: &str) -> IResult<&str, VarNode> {
+    let (input, _) = terminated(tag("var"), whitespace)(input)?;
+    let (input, var_name) = terminated(var_name, whitespace)(input)?;
+    let (input, _) = terminated(tag(":"), whitespace)(input)?;
+    let (input, var_type) = terminated(parse_type, whitespace)(input)?;
+
+    Ok((input, VarNode { var_name, var_type }))
+}
+
+fn feature(input: &str) -> IResult<&str, FeatureNode> {
+    enum VarOrIf<'a> {
+        Var(VarNode<'a>),
+        If(IfNode<'a>),
+    }
+
+    fn var_or_if(input: &str) -> IResult<&str, VarOrIf> {
+        alt((
+            map(var_declaration, |x| VarOrIf::Var(x)),
+            map(if_statement, |x| VarOrIf::If(x)),
+        ))(input)
+    }
+
+    let (input, _) = terminated(tag("["), whitespace)(input)?;
+    let (input, nodes) = many1(var_or_if)(input)?;
+    let (input, _) = terminated(tag("]"), whitespace)(input)?;
+
+    let (variables, if_statements) = nodes.into_iter().fold(
+        (Vec::new(), Vec::new()),
+        |(mut variables, mut if_statements), x| {
+            match x {
+                VarOrIf::Var(var_node) => variables.push(var_node),
+                VarOrIf::If(if_node) => if_statements.push(if_node),
+            }
+            (variables, if_statements)
+        },
+    );
+
+    Ok((
+        input,
+        FeatureNode {
+            variables,
+            if_statements,
+        },
+    ))
+}
+
+pub fn parse_gpt_to_ntuple(input: &str) -> IResult<&str, Vec<NTuple>> {
+    let (input, ast) = feature(input)?;
+    let (variables, predicates) = ast_to_ir::traverse_feature_node(&ast);
+    let ntuples = ir_to_ntuple::ir_to_ntuple(&variables, &predicates);
+
+    Ok((input, ntuples))
+}
 
 #[cfg(test)]
 mod tests {
@@ -515,6 +628,7 @@ mod tests {
         assert_eq!(var_name("_private"), Ok(("", "_private")));
         assert_eq!(var_name("some123"), Ok(("", "some123")));
         assert_eq!(var_name("i18n"), Ok(("", "i18n")));
+        assert_eq!(var_name("second_hand_price"), Ok(("", "second_hand_price")));
         assert!(var_name("9asd").is_err());
 
         assert!(var_name("if").is_err());
@@ -653,7 +767,7 @@ mod tests {
                     var_name: "foo",
                     constant_position: ConstantPosition::LeftHandSide,
                     constant: 3.0,
-                    binary_op: BinaryOp::GreaterThanEqualTo
+                    binary_op: BinaryOp::LessThanEqualTo
                 })
             ))
         );
@@ -665,7 +779,7 @@ mod tests {
                     var_name: "qwe",
                     constant_position: ConstantPosition::LeftHandSide,
                     constant: 0.1,
-                    binary_op: BinaryOp::LessThan
+                    binary_op: BinaryOp::GreaterThan
                 })
             ))
         );
@@ -855,7 +969,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            conditions("true = x && 0 < y"),
+            conditions("true = x && 0 > y"),
             Ok((
                 "",
                 ConditionsNode {
@@ -864,7 +978,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            conditions("true = x && 0 < y && 0 < y    asd"),
+            conditions("true = x && 0 > y && 0 > y    asd"),
             Ok((
                 "asd",
                 ConditionsNode {
@@ -926,5 +1040,69 @@ mod tests {
     #[test]
     fn test_else_statement() {
         // TODO
+    }
+
+    #[test]
+    fn test_feature() {
+        let input = r#"
+        [
+            var VIP: bool 
+            var price: num
+            var second_hand_price: num
+          
+            if(VIP = true && price < 50 && price != 0) {
+              if(price < 20 && second_hand_price > 60)
+              if(price != 50)
+            }
+            else if(second_hand_price > 60)
+          
+            if(price > 30 && second_hand_price > 60)
+          
+            if(VIP = true) {
+              if(second_hand_price = 2)
+              if(second_hand_price = 3)
+            }
+          
+            if(second_hand_price >= 50) {
+              if(price < 5)
+            }
+            else if(10 < second_hand_price)
+          
+            if(price in [0,10] && price not in (9,100])
+          
+            if(VIP = true && price < 10) {
+              if(second_hand_price = 2)
+              if(second_hand_price = 3)
+            }
+            if(VIP = true) {
+              if(second_hand_price = 2)
+              if(second_hand_price = 3)
+            }
+            if(price < 10) {
+              if(second_hand_price = 2)
+              if(second_hand_price = 3)
+            }
+          
+          
+            if(price > 10) {
+              if(price < 100) {
+                if(price in [20,30])
+              }
+            }
+          
+            if(price in (-Inf,0) && price in (0,10])
+          ]
+        "#;
+
+        assert_eq!(
+            feature(input.trim()),
+            Ok((
+                "",
+                FeatureNode {
+                    variables: Vec::new(),
+                    if_statements: Vec::new()
+                }
+            ))
+        );
     }
 }

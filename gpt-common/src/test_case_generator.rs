@@ -7,7 +7,7 @@ use crate::{
     interval::{Boundary, IntervalError},
 };
 
-fn generate_test_cases(inputs: &Vec<Input>) -> Result<Vec<NTuple>, IntervalError> {
+pub fn generate_test_cases(inputs: &Vec<Input>) -> Result<Vec<NTuple>, IntervalError> {
     let mut modifiedInputs = vec![
         calculate_in_on_patterns1(inputs)?,
         calculate_in_on_patterns2(inputs)?,
