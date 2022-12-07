@@ -130,3 +130,8 @@ pub struct ElseNode<'a> {
 pub struct ConditionsNode<'a> {
     pub conditions: Vec<Condition<'a>>,
 }
+
+#[derive(PartialEq, Debug)]
+pub struct RootNode<'a> {
+    pub features: Vec<FeatureNode<'a>>,
+}

@@ -1,6 +1,9 @@
 use crate::dto::{BoolDTO, BoolExpression, Expression, Input, IntervalDTO, NTuple};
 
-use super::{ast::Type, ir};
+use super::{
+    ast::Type,
+    ir::{self, Feature},
+};
 
 fn convert_bool_dto(condition: ir::BoolCondition) -> BoolDTO {
     let expression = if condition.should_equal_to == true {
@@ -75,7 +78,12 @@ fn convert_predicate_to_ntuple(variables: &Vec<ir::Variable>, predicate: &ir::Pr
     NTuple { inputs }
 }
 
-pub fn ir_to_ntuple(variables: &Vec<ir::Variable>, predicates: &Vec<ir::Predicate>) -> Vec<NTuple> {
+pub fn ir_to_ntuple<'a>(
+    Feature {
+        variables,
+        predicates,
+    }: &Feature<'a>,
+) -> Vec<NTuple> {
     predicates
         .clone()
         .iter()

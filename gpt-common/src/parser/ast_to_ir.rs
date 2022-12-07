@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    ast::{self, BinaryOp, ConditionsNode, ConstantPosition, EqOp, IfNode, VarNode},
+    ast::{self, BinaryOp, ConditionsNode, ConstantPosition, EqOp, IfNode, RootNode, VarNode},
     ir::{self, IntervalCondition},
 };
 
@@ -133,9 +133,7 @@ fn convert_variable<'a>(var_node: &'a ast::VarNode) -> ir::Variable<'a> {
     }
 }
 
-pub fn traverse_feature_node<'a>(
-    feature_node: &'a ast::FeatureNode,
-) -> (Vec<ir::Variable<'a>>, Vec<ir::Predicate<'a>>) {
+fn traverse_feature_node<'a>(feature_node: &'a ast::FeatureNode) -> ir::Feature<'a> {
     let variables = feature_node
         .variables
         .iter()
@@ -149,5 +147,12 @@ pub fn traverse_feature_node<'a>(
         .flatten()
         .collect();
 
-    (variables, predicates)
+    ir::Feature {
+        variables,
+        predicates,
+    }
+}
+
+pub fn convert_ast_to_ir<'a>(root: &'a RootNode<'a>) -> Vec<ir::Feature<'a>> {
+    root.features.iter().map(traverse_feature_node).collect()
 }

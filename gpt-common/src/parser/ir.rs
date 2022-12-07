@@ -41,3 +41,8 @@ impl Condition<'_> {
 }
 
 pub type Predicate<'a> = Vec<Condition<'a>>;
+
+pub struct Feature<'a> {
+    pub variables: Vec<Variable<'a>>,
+    pub predicates: Vec<Predicate<'a>>,
+}

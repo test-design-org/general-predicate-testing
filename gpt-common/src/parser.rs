@@ -37,6 +37,7 @@ use self::ast::ElseNode;
 use self::ast::FeatureNode;
 use self::ast::IfNode;
 use self::ast::IntervalCondition;
+use self::ast::RootNode;
 use self::ast::Type;
 use self::ast::VarNode;
 use self::ast::{BinaryOp, BoolOp, Condition, EqOp, IntervalOp};
@@ -469,12 +470,19 @@ fn feature(input: &str) -> IResult<&str, FeatureNode> {
     ))
 }
 
-pub fn parse_gpt_to_ntuple(input: &str) -> IResult<&str, Vec<NTuple>> {
-    let (input, ast) = feature(input)?;
-    let (variables, predicates) = ast_to_ir::traverse_feature_node(&ast);
-    let ntuples = ir_to_ntuple::ir_to_ntuple(&variables, &predicates);
+fn root(input: &str) -> IResult<&str, RootNode> {
+    let (input, _) = whitespace(input)?;
+    let (input, features) = many0(terminated(feature, whitespace))(input)?;
 
-    Ok((input, ntuples))
+    Ok((input, RootNode { features }))
+}
+
+pub fn parse_gpt_to_features(input: &str) -> IResult<&str, Vec<Vec<NTuple>>> {
+    let (input, ast) = root(input)?;
+    let ir_features = ast_to_ir::convert_ast_to_ir(&ast);
+    let ntuples_for_features = ir_features.iter().map(ir_to_ntuple::ir_to_ntuple).collect();
+
+    Ok((input, ntuples_for_features))
 }
 
 #[cfg(test)]
