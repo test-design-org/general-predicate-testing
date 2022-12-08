@@ -18,103 +18,103 @@ pub fn generate_test_cases_for_multiple_features(
     Ok(res)
 }
 
-fn generate_test_cases_for_feature(nTuples: &Vec<NTuple>) -> Result<Vec<NTuple>, IntervalError> {
-    let inputs = nTuples.into_iter().flat_map(|x| x.inputs.clone()).collect();
+fn generate_test_cases_for_feature(n_tuples: &[NTuple]) -> Result<Vec<NTuple>, IntervalError> {
+    let inputs = n_tuples
+        .iter()
+        .flat_map(|x| x.inputs.clone())
+        .collect::<Vec<Input>>();
     generate_test_cases_for_inputs(&inputs)
 }
 
-fn generate_test_cases_for_inputs(inputs: &Vec<Input>) -> Result<Vec<NTuple>, IntervalError> {
-    let mut modifiedInputs = vec![
+fn generate_test_cases_for_inputs(inputs: &[Input]) -> Result<Vec<NTuple>, IntervalError> {
+    let mut modified_inputs = vec![
         calculate_in_on_patterns1(inputs)?,
         calculate_in_on_patterns2(inputs)?,
     ];
-    modifiedInputs.extend(off_out(inputs)?);
+    modified_inputs.extend(off_out(inputs)?);
 
-    let mut nTuples: Vec<NTuple> = modifiedInputs
+    let mut n_tuples: Vec<NTuple> = modified_inputs
         .into_iter()
         .map(|inputs| NTuple { inputs })
         .collect();
 
-    nTuples = nTuples.uniques();
+    n_tuples = n_tuples.uniques();
 
-    Ok(nTuples)
+    Ok(n_tuples)
 }
 
-fn calculate_in_on_patterns1(inputs: &Vec<Input>) -> Result<Vec<Input>, IntervalError> {
+fn calculate_in_on_patterns1(inputs: &[Input]) -> Result<Vec<Input>, IntervalError> {
     inputs
         .iter()
         .map(|input| match input {
-            Input::MissingVariable => Ok(input.clone()),
-            Input::Bool(_) => Ok(input.clone()),
+            Input::Bool(_) | Input::MissingVariable => Ok(input.clone()),
             Input::Interval(IntervalDTO { is_constant, .. }) if *is_constant => Ok(input.clone()),
             Input::Interval(interval_dto) => match interval_dto.expression {
                 Expression::LessThan | Expression::LessThanOrEqualTo => {
                     in_in(interval_dto, InInVersion::IntervalRight)
                 }
 
-                Expression::EqualTo => on(interval_dto, OnVersion::IntervalEqual),
+                Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
 
                 Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
                     in_in(interval_dto, InInVersion::IntervalLeft)
                 }
 
-                Expression::NotEqualTo => In(interval_dto, InVersion::IntervalRight),
-                Expression::Interval => on(interval_dto, OnVersion::IntervalLeft),
+                Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalRight),
+                Expression::Interval => Ok(on(interval_dto, OnVersion::IntervalLeft)),
             },
         })
         .collect()
 }
 
-fn calculate_in_on_patterns2(inputs: &Vec<Input>) -> Result<Vec<Input>, IntervalError> {
+fn calculate_in_on_patterns2(inputs: &[Input]) -> Result<Vec<Input>, IntervalError> {
     inputs
         .iter()
         .map(|input| match input {
-            Input::MissingVariable => Ok(input.clone()),
-            Input::Bool(_) => Ok(input.clone()),
+            Input::Bool(_) | Input::MissingVariable => Ok(input.clone()),
             Input::Interval(IntervalDTO { is_constant, .. }) if *is_constant => Ok(input.clone()),
             Input::Interval(interval_dto) => match interval_dto.expression {
                 Expression::LessThan | Expression::LessThanOrEqualTo => {
-                    on(interval_dto, OnVersion::IntervalRight)
+                    Ok(on(interval_dto, OnVersion::IntervalRight))
                 }
 
-                Expression::EqualTo => on(interval_dto, OnVersion::IntervalEqual),
+                Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
 
                 Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
-                    on(interval_dto, OnVersion::IntervalLeft)
+                    Ok(on(interval_dto, OnVersion::IntervalLeft))
                 }
 
-                Expression::NotEqualTo => In(interval_dto, InVersion::IntervalLeft),
-                Expression::Interval => on(interval_dto, OnVersion::IntervalRight),
+                Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalLeft),
+                Expression::Interval => Ok(on(interval_dto, OnVersion::IntervalRight)),
             },
         })
         .collect()
 }
 
-fn baseline(inputs: &Vec<Input>) -> Result<Vec<Input>, IntervalError> {
+fn baseline(inputs: &[Input]) -> Result<Vec<Input>, IntervalError> {
     inputs
         .iter()
         .map(|input| -> Result<Input, IntervalError> {
             match input {
-                Input::MissingVariable => Ok(input.clone()),
-                Input::Bool(_) => Ok(input.clone()),
+                Input::Bool(_) | Input::MissingVariable => Ok(input.clone()),
                 Input::Interval(interval_dto) => match interval_dto.expression {
                     Expression::LessThan | Expression::LessThanOrEqualTo => {
-                        In(interval_dto, InVersion::IntervalRight)
+                        calc_in(interval_dto, InVersion::IntervalRight)
                     }
 
                     Expression::GreaterThan
                     | Expression::GreaterThanOrEqualTo
-                    | Expression::NotEqualTo => In(interval_dto, InVersion::IntervalLeft),
+                    | Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalLeft),
 
-                    Expression::EqualTo => on(interval_dto, OnVersion::IntervalEqual),
-                    Expression::Interval => In(interval_dto, InVersion::Interval),
+                    Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
+                    Expression::Interval => calc_in(interval_dto, InVersion::Interval),
                 },
             }
         })
         .collect()
 }
 
-fn off_out(inputs: &Vec<Input>) -> Result<Vec<Vec<Input>>, IntervalError> {
+fn off_out(inputs: &[Input]) -> Result<Vec<Vec<Input>>, IntervalError> {
     let mut output: Vec<Vec<Input>> = Vec::new();
 
     for (i, input) in inputs.iter().enumerate() {
@@ -153,14 +153,14 @@ fn off_out(inputs: &Vec<Input>) -> Result<Vec<Vec<Input>>, IntervalError> {
             Input::Interval(interval_dto @ IntervalDTO { expression, .. }) => match expression {
                 Expression::LessThan | Expression::LessThanOrEqualTo => {
                     based1[i] = out(interval_dto, OutVersion::IntervalRight)?;
-                    based2[i] = off(interval_dto, OffVersion::IntervalRight)?;
+                    based2[i] = off(interval_dto, OffVersion::IntervalRight);
 
                     output.push(based1);
                     output.push(based2);
                 }
                 Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
                     based1[i] = out(interval_dto, OutVersion::IntervalLeft)?;
-                    based2[i] = off(interval_dto, OffVersion::IntervalLeft)?;
+                    based2[i] = off(interval_dto, OffVersion::IntervalLeft);
 
                     output.push(based1);
                     output.push(based2);
@@ -173,15 +173,15 @@ fn off_out(inputs: &Vec<Input>) -> Result<Vec<Vec<Input>>, IntervalError> {
                     output.push(based2);
                 }
                 Expression::NotEqualTo => {
-                    based1[i] = off(interval_dto, OffVersion::IntervalRight)?; // TODO: This was 0 in the OG code, which meant no transformation, I think that's a bug
+                    based1[i] = off(interval_dto, OffVersion::IntervalRight); // TODO: This was 0 in the OG code, which meant no transformation, I think that's a bug
 
                     output.push(based1);
                 }
                 Expression::Interval => {
                     based1[i] = out(interval_dto, OutVersion::IntervalRight)?;
                     based2[i] = out(interval_dto, OutVersion::IntervalLeft)?;
-                    based3[i] = off(interval_dto, OffVersion::IntervalRight)?;
-                    based4[i] = off(interval_dto, OffVersion::IntervalLeft)?;
+                    based3[i] = off(interval_dto, OffVersion::IntervalRight);
+                    based4[i] = off(interval_dto, OffVersion::IntervalLeft);
 
                     output.push(based1);
                     output.push(based4);
@@ -201,10 +201,10 @@ enum OnVersion {
     IntervalLeft,
 }
 
-fn on(input: &IntervalDTO, version: OnVersion) -> Result<Input, IntervalError> {
+fn on(input: &IntervalDTO, version: OnVersion) -> Input {
     let interval = match version {
         // ==
-        OnVersion::IntervalEqual => input.interval.clone(),
+        OnVersion::IntervalEqual => input.interval,
         // <, <=, Interval Right
         OnVersion::IntervalRight => Interval::new_closed_point(
             input.interval.hi
@@ -225,12 +225,12 @@ fn on(input: &IntervalDTO, version: OnVersion) -> Result<Input, IntervalError> {
         ),
     };
 
-    Ok(Input::Interval(IntervalDTO {
+    Input::Interval(IntervalDTO {
         expression: input.expression,
         interval,
         precision: input.precision,
         is_constant: false,
-    }))
+    })
 }
 
 enum InVersion {
@@ -239,7 +239,7 @@ enum InVersion {
     Interval,
 }
 
-fn In(input: &IntervalDTO, version: InVersion) -> Result<Input, IntervalError> {
+fn calc_in(input: &IntervalDTO, version: InVersion) -> Result<Input, IntervalError> {
     let interval = match version {
         // <, <=
         InVersion::IntervalRight => Interval::new_closed(
@@ -327,7 +327,7 @@ enum OffVersion {
     IntervalLeft,
 }
 
-fn off(input: &IntervalDTO, version: OffVersion) -> Result<Input, IntervalError> {
+fn off(input: &IntervalDTO, version: OffVersion) -> Input {
     let interval = match version {
         // <, <=, Interval Right, == right
         OffVersion::IntervalRight => Interval::new_closed_point(
@@ -349,12 +349,12 @@ fn off(input: &IntervalDTO, version: OffVersion) -> Result<Input, IntervalError>
         ),
     };
 
-    Ok(Input::Interval(IntervalDTO {
+    Input::Interval(IntervalDTO {
         expression: input.expression,
         interval,
         precision: input.precision,
         is_constant: false,
-    }))
+    })
 }
 
 enum OutVersion {

@@ -1,3 +1,11 @@
+#![warn(
+    clippy::all,
+    // clippy::restriction,
+    // clippy::pedantic,
+    clippy::nursery,
+    clippy::cargo
+)]
+
 use crate::test_case_generator::generate_test_cases_for_multiple_features;
 
 pub mod dto;

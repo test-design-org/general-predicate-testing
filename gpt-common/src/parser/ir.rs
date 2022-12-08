@@ -8,10 +8,6 @@ pub struct Variable<'a> {
     pub var_type: Type,
 }
 
-pub struct State<'a> {
-    pub variables: Vec<Variable<'a>>,
-}
-
 #[derive(Clone)]
 pub struct BoolCondition<'a> {
     pub var_name: &'a str,
@@ -32,10 +28,10 @@ pub enum Condition<'a> {
 }
 
 impl Condition<'_> {
-    pub fn get_variable(&self) -> &str {
+    pub const fn get_variable(&self) -> &str {
         match self {
-            Condition::Bool(cond) => cond.var_name,
-            Condition::Interval(cond) => cond.var_name,
+            Self::Bool(cond) => cond.var_name,
+            Self::Interval(cond) => cond.var_name,
         }
     }
 }

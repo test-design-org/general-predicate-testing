@@ -4,11 +4,11 @@ use crate::{
 };
 
 use super::{
-    ast::{self, BinaryOp, ConditionsNode, ConstantPosition, EqOp, IfNode, RootNode, VarNode},
+    ast::{self, BinaryOp, ConstantPosition, EqOp, RootNode},
     ir::{self, IntervalCondition},
 };
 
-fn map_binary_op_to_expression(binop: &BinaryOp) -> Expression {
+const fn map_binary_op_to_expression(binop: &BinaryOp) -> Expression {
     match binop {
         BinaryOp::LessThan => Expression::LessThan,
         BinaryOp::GreaterThan => Expression::GreaterThan,
@@ -19,7 +19,7 @@ fn map_binary_op_to_expression(binop: &BinaryOp) -> Expression {
     }
 }
 
-fn resolve_bool_condition(eq_op: &EqOp, bool_val: bool) -> bool {
+const fn resolve_bool_condition(eq_op: &EqOp, bool_val: bool) -> bool {
     /*
     x = true    ->  true
     x != true   ->  false
@@ -50,7 +50,7 @@ fn binary_op_to_interval(binop: &BinaryOp, num: f32) -> MultiInterval {
         .expect("in binary_op_to_interval we've checked that lo <= hi")
 }
 
-fn convert_bool_condition<'a>(cond: &'a ast::BoolCondition) -> ir::Condition<'a> {
+const fn convert_bool_condition<'a>(cond: &'a ast::BoolCondition) -> ir::Condition<'a> {
     let should_equal_to = resolve_bool_condition(&cond.eq_op, cond.constant);
 
     ir::Condition::Bool(ir::BoolCondition {
@@ -100,7 +100,7 @@ fn convert_condition_node<'a>(conditions_node: &'a ast::ConditionsNode) -> ir::P
 }
 
 fn traverse_if_node<'a>(if_node: &'a ast::IfNode) -> Vec<ir::Predicate<'a>> {
-    if if_node.else_if.as_ref().map_or(false, |x| x.len() > 0) {
+    if if_node.else_if.as_ref().map_or(false, |x| !x.is_empty()) {
         panic!("Else if not yet supported!")
     }
 
@@ -116,9 +116,7 @@ fn traverse_if_node<'a>(if_node: &'a ast::IfNode) -> Vec<ir::Predicate<'a>> {
             let body_conditions = body_if_nodes.iter().flat_map(traverse_if_node);
             body_conditions
                 .map(|body_condition| {
-                    let conds = [initial_conditions.as_slice(), body_condition.as_slice()]
-                        .concat()
-                        .into();
+                    let conds = [initial_conditions.as_slice(), body_condition.as_slice()].concat();
                     conds
                 })
                 .collect()
@@ -126,7 +124,7 @@ fn traverse_if_node<'a>(if_node: &'a ast::IfNode) -> Vec<ir::Predicate<'a>> {
     }
 }
 
-fn convert_variable<'a>(var_node: &'a ast::VarNode) -> ir::Variable<'a> {
+const fn convert_variable<'a>(var_node: &'a ast::VarNode) -> ir::Variable<'a> {
     ir::Variable {
         var_name: var_node.var_name,
         var_type: var_node.var_type,
@@ -143,8 +141,7 @@ fn traverse_feature_node<'a>(feature_node: &'a ast::FeatureNode) -> ir::Feature<
     let predicates = feature_node
         .if_statements
         .iter()
-        .map(traverse_if_node)
-        .flatten()
+        .flat_map(traverse_if_node)
         .collect();
 
     ir::Feature {

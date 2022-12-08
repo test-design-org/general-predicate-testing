@@ -1,11 +1,8 @@
-use crate::dto::{BoolDTO, BoolExpression, Expression, Input, IntervalDTO, NTuple};
+use crate::dto::{BoolDTO, BoolExpression, Input, IntervalDTO, NTuple};
 
-use super::{
-    ast::Type,
-    ir::{self, Feature},
-};
+use super::ir::{self, Feature};
 
-fn convert_bool_dto(condition: ir::BoolCondition) -> BoolDTO {
+const fn convert_bool_dto(condition: &ir::BoolCondition) -> BoolDTO {
     let expression = if condition.should_equal_to == true {
         BoolExpression::IsTrue
     } else {
@@ -18,7 +15,7 @@ fn convert_bool_dto(condition: ir::BoolCondition) -> BoolDTO {
     }
 }
 
-fn convert_interval_dto(variable: ir::Variable, condition: ir::IntervalCondition) -> IntervalDTO {
+fn convert_interval_dto(variable: ir::Variable, condition: &ir::IntervalCondition) -> IntervalDTO {
     let precision = variable.var_type.get_precision().expect("Type error: when converting an interval dto in convert_interval_dto, the variable type doesn't have a precision!");
 
     IntervalDTO {
@@ -31,8 +28,8 @@ fn convert_interval_dto(variable: ir::Variable, condition: ir::IntervalCondition
 
 fn convert_condition(variable: ir::Variable, condition: ir::Condition) -> Input {
     match condition {
-        ir::Condition::Bool(cond) => Input::Bool(convert_bool_dto(cond)),
-        ir::Condition::Interval(cond) => Input::Interval(convert_interval_dto(variable, cond)),
+        ir::Condition::Bool(cond) => Input::Bool(convert_bool_dto(&cond)),
+        ir::Condition::Interval(cond) => Input::Interval(convert_interval_dto(variable, &cond)),
     }
 }
 
@@ -61,32 +58,32 @@ fn convert_condition(variable: ir::Variable, condition: ir::Condition) -> Input 
 //         .collect()
 // }
 
-fn convert_predicate_to_ntuple(variables: &Vec<ir::Variable>, predicate: &ir::Predicate) -> NTuple {
-    let inputs = variables
-        .clone()
-        .into_iter()
+fn convert_predicate_to_ntuple(variables: &[ir::Variable], predicate: &ir::Predicate) -> NTuple {
+    let inputs = (*variables)
+        .iter()
         .map(|variable| {
             predicate
                 .clone()
                 .into_iter()
                 .find(|cond| cond.get_variable() == variable.var_name)
-                .map(|cond| convert_condition(variable, cond))
-                .unwrap_or(Input::MissingVariable)
+                .map_or(Input::MissingVariable, |cond| {
+                    convert_condition(*variable, cond)
+                })
         })
         .collect();
 
     NTuple { inputs }
 }
 
-pub fn ir_to_ntuple<'a>(
+pub fn ir_to_ntuple(
     Feature {
         variables,
         predicates,
-    }: &Feature<'a>,
+    }: &Feature,
 ) -> Vec<NTuple> {
     predicates
         .clone()
         .iter()
-        .map(|predicate| convert_predicate_to_ntuple(&variables, predicate))
+        .map(|predicate| convert_predicate_to_ntuple(variables, predicate))
         .collect()
 }
