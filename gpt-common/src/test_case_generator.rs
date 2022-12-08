@@ -7,7 +7,23 @@ use crate::{
     interval::{Boundary, IntervalError},
 };
 
-fn generate_test_cases(inputs: &Vec<Input>) -> Result<Vec<NTuple>, IntervalError> {
+pub fn generate_test_cases_for_multiple_features(
+    features: &Vec<Vec<NTuple>>,
+) -> Result<Vec<NTuple>, IntervalError> {
+    let mut res = Vec::new();
+    for feature in features {
+        let mut test_cases = generate_test_cases_for_feature(feature)?;
+        res.append(&mut test_cases);
+    }
+    Ok(res)
+}
+
+fn generate_test_cases_for_feature(nTuples: &Vec<NTuple>) -> Result<Vec<NTuple>, IntervalError> {
+    let inputs = nTuples.into_iter().flat_map(|x| x.inputs.clone()).collect();
+    generate_test_cases_for_inputs(&inputs)
+}
+
+fn generate_test_cases_for_inputs(inputs: &Vec<Input>) -> Result<Vec<NTuple>, IntervalError> {
     let mut modifiedInputs = vec![
         calculate_in_on_patterns1(inputs)?,
         calculate_in_on_patterns2(inputs)?,
@@ -395,10 +411,10 @@ mod tests {
         interval::{Boundary, Interval},
     };
 
-    use super::generate_test_cases;
+    use super::generate_test_cases_for_inputs;
 
     #[test]
-    fn test_generate_test_cases() {
+    fn test_generate_test_cases_for_inputs() {
         // true;   <50; *
         let inputs: Vec<Input> = vec![
             Input::Bool(BoolDTO {
@@ -499,7 +515,7 @@ mod tests {
             },
         ];
 
-        let result = generate_test_cases(&inputs).unwrap();
+        let result = generate_test_cases_for_inputs(&inputs).unwrap();
 
         assert_eq!(result, expected);
     }
