@@ -2,13 +2,13 @@ use std::iter::zip;
 
 use crate::interval::{Intersectable, Interval};
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum BoolExpression {
     IsTrue,
     IsFalse,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub struct BoolDTO {
     pub expression: BoolExpression,
     pub bool_val: bool,
@@ -43,7 +43,7 @@ pub enum Expression {
     //   MissingVariable,
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Copy)]
 pub struct IntervalDTO {
     pub expression: Expression,
     pub interval: Interval,
@@ -67,7 +67,7 @@ impl Intersectable for IntervalDTO {
     }
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Copy)]
 pub enum Input {
     MissingVariable,
     Bool(BoolDTO),
