@@ -1,5 +1,5 @@
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
-use web_sys::{Event, HtmlElement, HtmlInputElement, HtmlTextAreaElement, InputEvent};
+use web_sys::{Event, HtmlTextAreaElement, InputEvent};
 use yew::prelude::*;
 
 #[derive(Clone, PartialEq, Properties)]

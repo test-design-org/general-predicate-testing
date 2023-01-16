@@ -25,7 +25,7 @@ impl Intersectable for BoolDTO {
             return None;
         }
 
-        Some(self.clone())
+        Some(*self)
     }
 }
 

@@ -47,8 +47,8 @@ fn calculate_in_on_patterns1(inputs: &[Input]) -> Result<Vec<Input>, IntervalErr
     inputs
         .iter()
         .map(|input| match input {
-            Input::Bool(_) | Input::MissingVariable => Ok(input.clone()),
-            Input::Interval(IntervalDTO { is_constant, .. }) if *is_constant => Ok(input.clone()),
+            Input::Bool(_) | Input::MissingVariable => Ok(*input),
+            Input::Interval(IntervalDTO { is_constant, .. }) if *is_constant => Ok(*input),
             Input::Interval(interval_dto) => match interval_dto.expression {
                 Expression::LessThan | Expression::LessThanOrEqualTo => {
                     in_in(interval_dto, InInVersion::IntervalRight)
@@ -71,8 +71,8 @@ fn calculate_in_on_patterns2(inputs: &[Input]) -> Result<Vec<Input>, IntervalErr
     inputs
         .iter()
         .map(|input| match input {
-            Input::Bool(_) | Input::MissingVariable => Ok(input.clone()),
-            Input::Interval(IntervalDTO { is_constant, .. }) if *is_constant => Ok(input.clone()),
+            Input::Bool(_) | Input::MissingVariable => Ok(*input),
+            Input::Interval(IntervalDTO { is_constant, .. }) if *is_constant => Ok(*input),
             Input::Interval(interval_dto) => match interval_dto.expression {
                 Expression::LessThan | Expression::LessThanOrEqualTo => {
                     Ok(on(interval_dto, OnVersion::IntervalRight))
@@ -96,7 +96,7 @@ fn baseline(inputs: &[Input]) -> Result<Vec<Input>, IntervalError> {
         .iter()
         .map(|input| -> Result<Input, IntervalError> {
             match input {
-                Input::Bool(_) | Input::MissingVariable => Ok(input.clone()),
+                Input::Bool(_) | Input::MissingVariable => Ok(*input),
                 Input::Interval(interval_dto) => match interval_dto.expression {
                     Expression::LessThan | Expression::LessThanOrEqualTo => {
                         calc_in(interval_dto, InVersion::IntervalRight)
@@ -135,7 +135,7 @@ fn off_out(inputs: &[Input]) -> Result<Vec<Vec<Input>>, IntervalError> {
             Input::Bool(BoolDTO { expression, .. }) => match expression {
                 BoolExpression::IsTrue => {
                     based1[i] = Input::Bool(BoolDTO {
-                        expression: expression.clone(),
+                        expression: *expression,
                         bool_val: false,
                         is_constant: false,
                     });
@@ -143,7 +143,7 @@ fn off_out(inputs: &[Input]) -> Result<Vec<Vec<Input>>, IntervalError> {
                 }
                 BoolExpression::IsFalse => {
                     based1[i] = Input::Bool(BoolDTO {
-                        expression: expression.clone(),
+                        expression: *expression,
                         bool_val: true,
                         is_constant: false,
                     });
