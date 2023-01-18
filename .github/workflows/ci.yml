@@ -13,9 +13,56 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          
       - run: cargo build --verbose
       - run: cargo test --verbose
-  
+
+  netlify_preview:
+    name: Netlify deploy preview
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    needs: build_and_test
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+
+      - name: Install trunk
+        uses: giantswarm/install-binary-action@v1.0.0
+        with:
+          binary: "trunk"
+          version: "v0.16.0"
+          download_url: "https://github.com/thedodd/trunk/releases/download/${version}/trunk-x86_64-unknown-linux-gnu.tar.gz"
+          tarball_binary_path: "${binary}"
+          smoke_test: "${binary} --version"
+      
+      - run: trunk build
+        working-directory: gpt-frontend
+
+      - name: Deploy to Netlify
+        uses: nwtgck/actions-netlify@v1.2
+        with:
+          publish-dir: './gpt-frontend/dist'
+          production-branch: main
+          production-deploy: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "Deploy from GitHub Actions"
+          enable-pull-request-comment: true
+          enable-commit-comment: true
+          overwrites-pull-request-comment: true
+          # netlify-config-path: ./gpt-frontend/netlify.toml
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        timeout-minutes: 1
