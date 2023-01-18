@@ -8,7 +8,7 @@ pub trait Intersectable {
         Self: Sized;
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Boundary {
     Open,
     Closed,
@@ -35,11 +35,11 @@ impl Interval {
         lo: f32,
         hi: f32,
         hi_boundary: Boundary,
-    ) -> Result<Interval, IntervalError> {
+    ) -> Result<Self, IntervalError> {
         if lo > hi {
             Err(IntervalError::LoIsGreaterThanHi)
         } else {
-            Ok(Interval {
+            Ok(Self {
                 lo_boundary,
                 lo,
                 hi,
@@ -48,12 +48,13 @@ impl Interval {
         }
     }
 
-    pub fn new_closed(lo: f32, hi: f32) -> Result<Interval, IntervalError> {
-        Interval::new(Boundary::Closed, lo, hi, Boundary::Closed)
+    pub fn new_closed(lo: f32, hi: f32) -> Result<Self, IntervalError> {
+        Self::new(Boundary::Closed, lo, hi, Boundary::Closed)
     }
 
-    pub fn new_closed_point(point: f32) -> Interval {
-        Interval {
+    #[must_use]
+    pub const fn new_closed_point(point: f32) -> Self {
+        Self {
             lo_boundary: Boundary::Closed,
             lo: point,
             hi: point,
@@ -63,7 +64,7 @@ impl Interval {
 }
 
 impl Intersectable for Interval {
-    fn intersects_with(&self, other: &Interval) -> bool {
+    fn intersects_with(&self, other: &Self) -> bool {
         let doesnt_intersect = (self.lo > other.hi || other.lo > self.hi)
             || self.lo == other.hi
                 && (self.lo_boundary == Boundary::Open || other.hi_boundary == Boundary::Open)
@@ -73,20 +74,20 @@ impl Intersectable for Interval {
         !doesnt_intersect
     }
 
-    fn intersect(&self, other: &Interval) -> Option<Interval> {
+    fn intersect(&self, other: &Self) -> Option<Self> {
         if !self.intersects_with(other) {
-            None
-        } else {
-            let bigger_lo = if self.lo > other.lo { self } else { other };
-            let smaller_hi = if self.hi < other.hi { self } else { other };
-
-            Some(Interval {
-                lo_boundary: bigger_lo.lo_boundary,
-                lo: bigger_lo.lo,
-                hi: smaller_hi.hi,
-                hi_boundary: smaller_hi.hi_boundary,
-            })
+            return None;
         }
+
+        let bigger_lo = if self.lo > other.lo { self } else { other };
+        let smaller_hi = if self.hi < other.hi { self } else { other };
+
+        Some(Self {
+            lo_boundary: bigger_lo.lo_boundary,
+            lo: bigger_lo.lo,
+            hi: smaller_hi.hi,
+            hi_boundary: smaller_hi.hi_boundary,
+        })
     }
 }
 
@@ -123,16 +124,17 @@ impl MultiInterval {
         lo: f32,
         hi: f32,
         hi_boundary: Boundary,
-    ) -> Result<MultiInterval, IntervalError> {
-        Ok(MultiInterval {
+    ) -> Result<Self, IntervalError> {
+        Ok(Self {
             intervals: vec![Interval::new(lo_boundary, lo, hi, hi_boundary)?],
         })
     }
 
-    pub fn new_closed(lo: f32, hi: f32) -> Result<MultiInterval, IntervalError> {
-        MultiInterval::new(Boundary::Closed, lo, hi, Boundary::Closed)
+    pub fn new_closed(lo: f32, hi: f32) -> Result<Self, IntervalError> {
+        Self::new(Boundary::Closed, lo, hi, Boundary::Closed)
     }
 
+    #[must_use]
     pub fn highest_hi(&self) -> f32 {
         self.intervals
             .last()
@@ -140,6 +142,7 @@ impl MultiInterval {
             .hi
     }
 
+    #[must_use]
     pub fn lowest_lo(&self) -> f32 {
         self.intervals
             .first()
@@ -147,6 +150,7 @@ impl MultiInterval {
             .lo
     }
 
+    #[must_use]
     pub fn highest_boundary(&self) -> Boundary {
         self.intervals
             .last()
@@ -154,6 +158,7 @@ impl MultiInterval {
             .hi_boundary
     }
 
+    #[must_use]
     pub fn lowest_boundary(&self) -> Boundary {
         self.intervals
             .first()
@@ -161,6 +166,7 @@ impl MultiInterval {
             .lo_boundary
     }
 
+    #[must_use]
     pub fn DONOTUSE_get_interval(&self) -> Interval {
         self.intervals[0]
     }
@@ -169,9 +175,9 @@ impl MultiInterval {
 impl Intersectable for MultiInterval {
     // TODO: This could be sped up, because the interval Vecs are sorted
     // It could be a step-by-step comparison
-    fn intersects_with(&self, other: &MultiInterval) -> bool {
-        for x in self.intervals.iter() {
-            for y in other.intervals.iter() {
+    fn intersects_with(&self, other: &Self) -> bool {
+        for x in &self.intervals {
+            for y in &other.intervals {
                 if x.intersects_with(y) {
                     return true;
                 }
@@ -181,12 +187,12 @@ impl Intersectable for MultiInterval {
         false
     }
 
-    fn intersect(&self, other: &MultiInterval) -> Option<MultiInterval> {
+    fn intersect(&self, other: &Self) -> Option<Self> {
         let mut intersected_intervals: Vec<Interval> = self
             .intervals
             .iter()
             .flat_map(|x| other.intervals.iter().map(|y| x.intersect(y)))
-            .filter_map(|x| x)
+            .flatten()
             .collect();
 
         intersected_intervals.sort_unstable_by(|a, b| {
@@ -197,7 +203,7 @@ impl Intersectable for MultiInterval {
         if intersected_intervals.is_empty() {
             None
         } else {
-            Some(MultiInterval {
+            Some(Self {
                 intervals: intersected_intervals,
             })
         }
@@ -214,7 +220,7 @@ mod test {
 
     fn int(input: &str) -> Interval {
         let (_, x) = interval(input).unwrap();
-        x.intervals.first().unwrap().clone()
+        *x.intervals.first().unwrap()
     }
 
     #[test]

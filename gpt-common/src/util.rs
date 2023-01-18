@@ -8,8 +8,8 @@ impl<T: PartialEq + Clone> UniquesVec<T> for Vec<T> {
     /// O(n^2) complexity, because it can't use `Ord`, so it has to compare each element to each other.
     /// Also clones every element.
     // TODO: This could be done in place
-    fn uniques(self: &Vec<T>) -> Vec<T> {
-        let mut uniques: Vec<T> = Vec::new();
+    fn uniques(&self) -> Self {
+        let mut uniques = Self::new();
 
         for x in self.iter() {
             let contains = uniques.iter().any(|y| x == y);

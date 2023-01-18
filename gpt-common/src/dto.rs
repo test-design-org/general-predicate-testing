@@ -1,17 +1,14 @@
 use std::iter::zip;
 
-use crate::{
-    interval::{Intersectable, Interval, MultiInterval},
-    parser::ast::EqOp,
-};
+use crate::interval::{Intersectable, Interval};
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum BoolExpression {
     IsTrue,
     IsFalse,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub struct BoolDTO {
     pub expression: BoolExpression,
     pub bool_val: bool,
@@ -19,20 +16,20 @@ pub struct BoolDTO {
 }
 
 impl Intersectable for BoolDTO {
-    fn intersects_with(&self, other: &BoolDTO) -> bool {
+    fn intersects_with(&self, other: &Self) -> bool {
         self.bool_val == other.bool_val
     }
 
-    fn intersect(&self, other: &BoolDTO) -> Option<BoolDTO> {
+    fn intersect(&self, other: &Self) -> Option<Self> {
         if !self.intersects_with(other) {
-            None
-        } else {
-            Some(self.clone())
+            return None;
         }
+
+        Some(*self)
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Expression {
     LessThan,
     LessThanOrEqualTo,
@@ -46,7 +43,7 @@ pub enum Expression {
     //   MissingVariable,
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Copy)]
 pub struct IntervalDTO {
     pub expression: Expression,
     pub interval: Interval,
@@ -55,13 +52,13 @@ pub struct IntervalDTO {
 }
 
 impl Intersectable for IntervalDTO {
-    fn intersects_with(&self, other: &IntervalDTO) -> bool {
+    fn intersects_with(&self, other: &Self) -> bool {
         self.interval.intersects_with(&other.interval)
     }
 
-    fn intersect(&self, other: &IntervalDTO) -> Option<IntervalDTO> {
+    fn intersect(&self, other: &Self) -> Option<Self> {
         let interval = self.interval.intersect(&other.interval)?;
-        Some(IntervalDTO {
+        Some(Self {
             expression: self.expression,
             interval,
             precision: self.precision,
@@ -70,7 +67,7 @@ impl Intersectable for IntervalDTO {
     }
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Copy)]
 pub enum Input {
     MissingVariable,
     Bool(BoolDTO),
@@ -78,17 +75,16 @@ pub enum Input {
 }
 
 impl Intersectable for Input {
-    fn intersects_with(&self, other: &Input) -> bool {
+    fn intersects_with(&self, other: &Self) -> bool {
         match (self, other) {
-            (Input::MissingVariable, _) => true,
-            (_, Input::MissingVariable) => true,
-            (Input::Bool(this), Input::Bool(that)) => this.intersects_with(that),
-            (Input::Interval(this), Input::Interval(that)) => this.intersects_with(that),
+            (Self::MissingVariable, _) | (_, Self::MissingVariable) => true,
+            (Self::Bool(this), Self::Bool(that)) => this.intersects_with(that),
+            (Self::Interval(this), Self::Interval(that)) => this.intersects_with(that),
             (_, _) => false,
         }
     }
 
-    fn intersect(&self, other: &Input) -> Option<Input> {
+    fn intersect(&self, _other: &Self) -> Option<Self> {
         todo!()
     }
 }
@@ -99,22 +95,22 @@ pub struct NTuple {
 }
 
 impl Intersectable for NTuple {
-    fn intersects_with(&self, other: &NTuple) -> bool {
+    fn intersects_with(&self, other: &Self) -> bool {
         self.inputs.len() == other.inputs.len()
             && zip(&self.inputs, &other.inputs).all(|(a, b)| a.intersects_with(b))
     }
 
-    fn intersect(&self, other: &NTuple) -> Option<NTuple> {
+    fn intersect(&self, other: &Self) -> Option<Self> {
         if !self.intersects_with(other) {
-            None
-        } else {
-            let intersected_inputs: Vec<Input> = zip(&self.inputs, &other.inputs)
+            return None;
+        }
+
+        let intersected_inputs: Vec<Input> = zip(&self.inputs, &other.inputs)
                 .map(|(a, b)| a.intersect(b).expect("When intersecting an NTuple, we checked that each input should intersect, so they should intersect"))
                 .collect();
 
-            Some(NTuple {
-                inputs: intersected_inputs,
-            })
-        }
+        Some(Self {
+            inputs: intersected_inputs,
+        })
     }
 }

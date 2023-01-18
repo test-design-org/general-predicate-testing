@@ -1,20 +1,18 @@
-// pub mod dto;
-// pub mod interval;
-// pub mod parser;
-// mod test_case_generator;
-// mod util;
+use dto::NTuple;
+use parser::parse_gpt_to_features;
+use test_case_generator::generate_test_cases_for_multiple_features;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+pub mod dto;
+mod interval;
+mod parser;
+mod test_case_generator;
+pub mod test_value_generator;
+mod util;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub fn generate_tests_for_gpt_input(input: &str) -> Vec<NTuple> {
+    // TODO: Use thiserror and clean up these unwraps
+    let (_, features) = parse_gpt_to_features(input).unwrap();
+    let test_cases = generate_test_cases_for_multiple_features(&features).unwrap();
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+    test_cases
 }

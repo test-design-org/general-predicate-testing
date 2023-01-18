@@ -8,22 +8,23 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn get_precision(&self) -> Option<f32> {
+    #[must_use]
+    pub const fn get_precision(&self) -> Option<f32> {
         match self {
-            Type::Bool => None,
-            Type::Integer => Some(1.0),
-            Type::Float { precision } => Some(*precision),
+            Self::Bool => None,
+            Self::Integer => Some(1.0),
+            Self::Float { precision } => Some(*precision),
         }
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum EqOp {
     Equal,
     NotEqual,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum BinaryOp {
     LessThan,
     GreaterThan,
@@ -37,37 +38,38 @@ impl BinaryOp {
     /// Swaps the `BinaryOp` as if the left and right hand side were swapped.
     ///
     /// Example: x > 10 == 10 < x, y = 20 == 20 = y
-    pub fn flip(&self) -> BinaryOp {
+    #[must_use]
+    pub const fn flip(&self) -> Self {
         match self {
-            BinaryOp::LessThan => BinaryOp::GreaterThan,
-            BinaryOp::GreaterThan => BinaryOp::LessThan,
-            BinaryOp::LessThanEqualTo => BinaryOp::GreaterThanEqualTo,
-            BinaryOp::GreaterThanEqualTo => BinaryOp::LessThanEqualTo,
-            BinaryOp::Equal => BinaryOp::Equal,
-            BinaryOp::NotEqual => BinaryOp::NotEqual,
+            Self::LessThan => Self::GreaterThan,
+            Self::GreaterThan => Self::LessThan,
+            Self::LessThanEqualTo => Self::GreaterThanEqualTo,
+            Self::GreaterThanEqualTo => Self::LessThanEqualTo,
+            Self::Equal => Self::Equal,
+            Self::NotEqual => Self::NotEqual,
         }
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IntervalOp {
     In,
     NotIn,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum BoolOp {
     And,
     // Or,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ConstantPosition {
     LeftHandSide,
     RightHandSide,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BoolCondition<'a> {
     pub var_name: &'a str,
     pub constant: bool,

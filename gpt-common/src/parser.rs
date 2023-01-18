@@ -1,31 +1,21 @@
-use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fmt::format;
 use std::num::ParseIntError;
 
 use nom::bytes::complete::tag;
-use nom::bytes::complete::take;
-use nom::bytes::complete::take_while;
 use nom::character::complete::anychar;
-use nom::character::complete::{alphanumeric0, digit1, space0};
+use nom::character::complete::{digit1, space0};
 use nom::character::is_alphabetic;
 use nom::character::is_alphanumeric;
 use nom::combinator::fail;
 use nom::combinator::value;
-use nom::combinator::{complete, cond, map, map_res, opt, peek, recognize};
-use nom::error;
-use nom::error::ParseError;
-use nom::multi::count;
+use nom::combinator::{complete, map, map_res, opt, recognize};
 use nom::multi::many0;
 use nom::multi::many1;
 use nom::multi::separated_list1;
-use nom::number::complete::recognize_float;
-use nom::sequence::{separated_pair, terminated, tuple};
+use nom::sequence::{terminated, tuple};
 use nom::IResult;
-use nom::Parser;
 use nom::{branch::alt, character::streaming::char};
 
-use crate::interval;
 use crate::interval::{Boundary, MultiInterval};
 
 use self::ast::BinaryCondition;
@@ -76,7 +66,7 @@ fn int(input: &str) -> IResult<&str, f32> {
 }
 
 fn infinity(input: &str) -> IResult<&str, f32> {
-    map(tuple((opt(char('-')), tag("Inf"))), |(minus, inf)| {
+    map(tuple((opt(char('-')), tag("Inf"))), |(minus, _)| {
         if minus.is_none() {
             f32::INFINITY
         } else {
@@ -344,7 +334,7 @@ fn if_statement(input: &str) -> IResult<&str, IfNode> {
 
     let if_node = IfNode {
         body,
-        conditions: conditions,
+        conditions,
         else_if: else_if_statements,
         else_node: else_statement,
     };
@@ -441,8 +431,8 @@ fn feature(input: &str) -> IResult<&str, FeatureNode> {
 
     fn var_or_if(input: &str) -> IResult<&str, VarOrIf> {
         alt((
-            map(var_declaration, |x| VarOrIf::Var(x)),
-            map(if_statement, |x| VarOrIf::If(x)),
+            map(var_declaration, VarOrIf::Var),
+            map(if_statement, VarOrIf::If),
         ))(input)
     }
 
@@ -1036,18 +1026,20 @@ mod tests {
                     })
                 }
             ))
-        )
+        );
         // TODO
     }
 
-    #[test]
+    // #[test]
     fn test_else_if_statement() {
         // TODO
+        todo!()
     }
 
-    #[test]
+    // #[test]
     fn test_else_statement() {
         // TODO
+        todo!()
     }
 
     // TODO: Make this test pass

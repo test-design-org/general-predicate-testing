@@ -5,5 +5,9 @@
     // Enable per-language
     "[rust]": {
         "editor.formatOnSave": true,
-    }
+    },
+    "[scss]": {
+        "editor.formatOnSave": true,
+    },
+    "rust-analyzer.checkOnSave.command": "clippy"
 }
