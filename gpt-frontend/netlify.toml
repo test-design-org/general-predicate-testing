@@ -1,0 +1,8 @@
+[build]
+  publish = "dist/"
+  command = "trunk build"
+
+[dev]
+  command = "trunk serve"
+  port = 8080
+  publish = "dist"
