@@ -19,14 +19,13 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          
+
       - run: cargo build --verbose
       - run: cargo test --verbose
 
   netlify_preview:
-    name: Netlify deploy preview
+    name: Netlify deploy
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'pull_request' }}
     needs: build_and_test
     steps:
       - uses: actions/checkout@v3
@@ -50,18 +49,39 @@ jobs:
       - run: trunk build
         working-directory: gpt-frontend
 
-      - name: Deploy to Netlify
+      - name: Deploy preview to Netlify
+        if: ${{ github.event_name == 'pull_request' }}
         uses: nwtgck/actions-netlify@v1.2
         with:
           publish-dir: './gpt-frontend/dist'
           production-branch: main
-          production-deploy: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+          production-deploy: false
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          deploy-message: "Deploy from GitHub Actions"
+          deploy-message: Deploy from GitHub Actions
           enable-pull-request-comment: true
           enable-commit-comment: true
           overwrites-pull-request-comment: true
-          # netlify-config-path: ./gpt-frontend/netlify.toml
+          github-deployment-environment: deployment_preview_pr_${{ github.event.number }}
+          github-deployment-description: Preview environment for PR ${{ github.event.number }}
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        timeout-minutes: 1
+
+      - name: Deploy production to Netlify
+        if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+        uses: nwtgck/actions-netlify@v1.2
+        with:
+          publish-dir: './gpt-frontend/dist'
+          production-branch: main
+          production-deploy: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: Deploy from GitHub Actions
+          enable-pull-request-comment: true
+          enable-commit-comment: true
+          overwrites-pull-request-comment: true
+          github-deployment-environment: production
+          github-deployment-description: Production deployment from the latest commit of main
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
