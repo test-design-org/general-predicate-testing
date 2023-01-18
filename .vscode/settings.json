@@ -1,14 +1,13 @@
 {
     // Set the default
     "editor.formatOnSave": false,
-    // "editor.defaultFormatter": "esbenp.prettier-vscode",
+    
     // Enable per-language
-    "[typescript]": {
+    "[rust]": {
         "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
-    "[typescriptreact]": {
+    "[scss]": {
         "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    }
+    },
+    "rust-analyzer.checkOnSave.command": "clippy"
 }

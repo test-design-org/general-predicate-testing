@@ -1,0 +1,15 @@
+{
+    // Set the default
+    "editor.formatOnSave": false,
+    // "editor.defaultFormatter": "esbenp.prettier-vscode",
+    // Enable per-language
+    "[typescript]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescriptreact]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "jest.jestCommandLine": "nx run-many --all --target=test --parallel"
+}
