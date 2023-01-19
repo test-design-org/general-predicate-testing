@@ -580,9 +580,9 @@ mod tests {
         assert_eq!(number("-123.0"), Ok(("", -123.0)));
         assert_eq!(number("123.123"), Ok(("", 123.123)));
         assert_eq!(number("123.123000000"), Ok(("", 123.123)));
-        assert_eq!(number("123."), Ok((".", 123.0)));
         assert_eq!(number("-Inf"), Ok(("", f32::NEG_INFINITY)));
         assert_eq!(number("Inf"), Ok(("", f32::INFINITY)));
+        assert!(number("123.").is_err());
         assert!(number("other").is_err());
     }
 
