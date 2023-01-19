@@ -6,14 +6,14 @@ use nom::character::complete::anychar;
 use nom::character::complete::{digit1, space0};
 use nom::character::is_alphabetic;
 use nom::character::is_alphanumeric;
-use nom::combinator::fail;
-use nom::combinator::value;
 use nom::combinator::{complete, map, map_res, opt, recognize};
+use nom::combinator::{cut, value};
+use nom::combinator::{eof, fail};
+use nom::error::{context, VerboseError};
 use nom::multi::many0;
 use nom::multi::many1;
 use nom::multi::separated_list1;
 use nom::sequence::{terminated, tuple};
-use nom::IResult;
 use nom::{branch::alt, character::streaming::char};
 
 use crate::interval::{Boundary, MultiInterval};
@@ -39,23 +39,28 @@ mod ast_to_ir;
 mod ir;
 mod ir_to_ntuple;
 
-fn comment(input: &str) -> IResult<&str, ()> {
+type IResult<'a, O> = nom::IResult<&'a str, O, VerboseError<&'a str>>;
+
+fn comment(input: &str) -> IResult<()> {
     todo!("Implement comment parsing")
 }
 
-fn whitespace(input: &str) -> IResult<&str, ()> {
+fn whitespace(input: &str) -> IResult<()> {
     let one_whitespace = complete(alt((char('\n'), char(' '), char('\t'))));
     value((), many0(one_whitespace))(input)
 }
 
-fn float(input: &str) -> IResult<&str, f32> {
-    map_res(
-        recognize(tuple((opt(char('-')), digit1, char('.'), digit1))),
-        str::parse,
+fn float(input: &str) -> IResult<f32> {
+    context(
+        "float",
+        map_res(
+            recognize(tuple((opt(char('-')), digit1, char('.'), cut(digit1)))),
+            str::parse,
+        ),
     )(input)
 }
 
-fn int(input: &str) -> IResult<&str, f32> {
+fn int(input: &str) -> IResult<f32> {
     map_res(
         recognize(tuple((opt(char('-')), digit1))),
         |x: &str| -> Result<f32, ParseIntError> {
@@ -65,7 +70,7 @@ fn int(input: &str) -> IResult<&str, f32> {
     )(input)
 }
 
-fn infinity(input: &str) -> IResult<&str, f32> {
+fn infinity(input: &str) -> IResult<f32> {
     map(tuple((opt(char('-')), tag("Inf"))), |(minus, _)| {
         if minus.is_none() {
             f32::INFINITY
@@ -75,73 +80,88 @@ fn infinity(input: &str) -> IResult<&str, f32> {
     })(input)
 }
 
-fn number(input: &str) -> IResult<&str, f32> {
-    alt((complete(float), int, infinity))(input)
+fn number(input: &str) -> IResult<f32> {
+    context("number", alt((complete(float), int, infinity)))(input)
 }
 
-fn boolean(input: &str) -> IResult<&str, bool> {
-    map_res(alt((tag("true"), tag("false"))), |x| match x {
-        "true" => Ok(true),
-        "false" => Ok(false),
-        &_ => Err(()),
-    })(input)
-}
-
-fn eq_op(input: &str) -> IResult<&str, EqOp> {
-    map_res(alt((tag("="), tag("!="))), |x| match x {
-        "=" => Ok(EqOp::Equal),
-        "!=" => Ok(EqOp::NotEqual),
-        &_ => Err(()),
-    })(input)
-}
-
-fn interval_op(input: &str) -> IResult<&str, IntervalOp> {
-    map_res(alt((tag("in"), tag("not in"))), |x| match x {
-        "in" => Ok(IntervalOp::In),
-        "not in" => Ok(IntervalOp::NotIn),
-        &_ => Err(()),
-    })(input)
-}
-
-fn binary_op(input: &str) -> IResult<&str, BinaryOp> {
-    map_res(
-        alt((
-            tag("<="),
-            tag(">="),
-            tag("!="),
-            tag("<"),
-            tag(">"),
-            tag("="),
-        )),
-        |x| match x {
-            "<=" => Ok(BinaryOp::LessThanEqualTo),
-            ">=" => Ok(BinaryOp::GreaterThanEqualTo),
-            "!=" => Ok(BinaryOp::NotEqual),
-            "<" => Ok(BinaryOp::LessThan),
-            ">" => Ok(BinaryOp::GreaterThan),
-            "=" => Ok(BinaryOp::Equal),
+fn boolean(input: &str) -> IResult<bool> {
+    context(
+        "boolean",
+        map_res(alt((tag("true"), tag("false"))), |x| match x {
+            "true" => Ok(true),
+            "false" => Ok(false),
             &_ => Err(()),
-        },
+        }),
     )(input)
 }
 
-fn bool_op(input: &str) -> IResult<&str, BoolOp> {
-    map_res(
-        alt((
-            tag("&&"),
-            // tag("||"),
-        )),
-        |x| {
-            match x {
-                "&&" => Ok(BoolOp::And),
-                // "||" => BoolOp::Or,
+fn eq_op(input: &str) -> IResult<EqOp> {
+    context(
+        "Equality operator",
+        map_res(alt((tag("="), tag("!="))), |x| match x {
+            "=" => Ok(EqOp::Equal),
+            "!=" => Ok(EqOp::NotEqual),
+            &_ => Err(()),
+        }),
+    )(input)
+}
+
+fn interval_op(input: &str) -> IResult<IntervalOp> {
+    context(
+        "Interval Operator",
+        map_res(alt((tag("in"), tag("not in"))), |x| match x {
+            "in" => Ok(IntervalOp::In),
+            "not in" => Ok(IntervalOp::NotIn),
+            &_ => Err(()),
+        }),
+    )(input)
+}
+
+fn binary_op(input: &str) -> IResult<BinaryOp> {
+    context(
+        "Binary Operator",
+        map_res(
+            alt((
+                tag("<="),
+                tag(">="),
+                tag("!="),
+                tag("<"),
+                tag(">"),
+                tag("="),
+            )),
+            |x| match x {
+                "<=" => Ok(BinaryOp::LessThanEqualTo),
+                ">=" => Ok(BinaryOp::GreaterThanEqualTo),
+                "!=" => Ok(BinaryOp::NotEqual),
+                "<" => Ok(BinaryOp::LessThan),
+                ">" => Ok(BinaryOp::GreaterThan),
+                "=" => Ok(BinaryOp::Equal),
                 &_ => Err(()),
-            }
-        },
+            },
+        ),
     )(input)
 }
 
-fn parse_lo_openness(input: &str) -> IResult<&str, Boundary> {
+fn bool_op(input: &str) -> IResult<BoolOp> {
+    context(
+        "Boolean Operator",
+        map_res(
+            alt((
+                tag("&&"),
+                // tag("||"),
+            )),
+            |x| {
+                match x {
+                    "&&" => Ok(BoolOp::And),
+                    // "||" => BoolOp::Or,
+                    &_ => Err(()),
+                }
+            },
+        ),
+    )(input)
+}
+
+fn parse_lo_openness(input: &str) -> IResult<Boundary> {
     map_res(alt((char('('), char('['))), |left_brace| match left_brace {
         '(' => Ok(Boundary::Open),
         '[' => Ok(Boundary::Closed),
@@ -149,7 +169,7 @@ fn parse_lo_openness(input: &str) -> IResult<&str, Boundary> {
     })(input)
 }
 
-fn parse_hi_openness(input: &str) -> IResult<&str, Boundary> {
+fn parse_hi_openness(input: &str) -> IResult<Boundary> {
     map_res(alt((char(')'), char(']'))), |left_brace| match left_brace {
         ')' => Ok(Boundary::Open),
         ']' => Ok(Boundary::Closed),
@@ -157,22 +177,25 @@ fn parse_hi_openness(input: &str) -> IResult<&str, Boundary> {
     })(input)
 }
 
-pub fn interval(input: &str) -> IResult<&str, MultiInterval> {
-    map_res(
-        tuple((
-            terminated(parse_lo_openness, space0),
-            terminated(number, space0),
-            terminated(char(','), space0),
-            terminated(number, space0),
-            terminated(parse_hi_openness, space0),
-        )),
-        |(lo_openness, lo, _comma, hi, hi_openness)| {
-            MultiInterval::new(lo_openness, lo, hi, hi_openness)
-        },
+pub fn interval(input: &str) -> IResult<MultiInterval> {
+    context(
+        "interval",
+        map_res(
+            tuple((
+                terminated(parse_lo_openness, space0),
+                terminated(number, space0),
+                terminated(char(','), space0),
+                terminated(number, space0),
+                terminated(parse_hi_openness, space0),
+            )),
+            |(lo_openness, lo, _comma, hi, hi_openness)| {
+                MultiInterval::new(lo_openness, lo, hi, hi_openness)
+            },
+        ),
     )(input)
 }
 
-fn parse_alphabetic(input: &str) -> IResult<&str, char> {
+fn parse_alphabetic(input: &str) -> IResult<char> {
     let (i, c) = anychar(input)?;
     if is_alphabetic(c as u8) {
         Ok((i, c))
@@ -181,7 +204,7 @@ fn parse_alphabetic(input: &str) -> IResult<&str, char> {
     }
 }
 
-fn parse_alphanumberic_or_underscore(input: &str) -> IResult<&str, char> {
+fn parse_alphanumberic_or_underscore(input: &str) -> IResult<char> {
     let (i, c) = anychar(input)?;
     if is_alphanumeric(c as u8) || c == '_' {
         Ok((i, c))
@@ -194,25 +217,28 @@ fn keywords() -> HashSet<&'static str> {
     HashSet::from(["if", "else", "true", "false"])
 }
 
-fn var_name(input: &str) -> IResult<&str, &str> {
-    map_res(
-        recognize(tuple((
-            alt((parse_alphabetic, char('_'))),
-            many0(parse_alphanumberic_or_underscore),
-        ))),
-        |var_name| {
-            if keywords().contains(var_name) {
-                Err(format!(
-                    "Cannot name a variable '{var_name}', it is a reserved keyword!"
-                ))
-            } else {
-                Ok(var_name)
-            }
-        },
+fn var_name(input: &str) -> IResult<&str> {
+    context(
+        "Variable name",
+        map_res(
+            recognize(tuple((
+                alt((parse_alphabetic, char('_'))),
+                many0(parse_alphanumberic_or_underscore),
+            ))),
+            |var_name| {
+                if keywords().contains(var_name) {
+                    Err(format!(
+                        "Cannot name a variable '{var_name}', it is a reserved keyword!"
+                    ))
+                } else {
+                    Ok(var_name)
+                }
+            },
+        ),
     )(input)
 }
 
-fn condition_bool_lhs(input: &str) -> IResult<&str, Condition> {
+fn condition_bool_lhs(input: &str) -> IResult<Condition> {
     map(
         tuple((
             terminated(boolean, whitespace),
@@ -229,7 +255,7 @@ fn condition_bool_lhs(input: &str) -> IResult<&str, Condition> {
     )(input)
 }
 
-fn condition_bool_rhs(input: &str) -> IResult<&str, Condition> {
+fn condition_bool_rhs(input: &str) -> IResult<Condition> {
     map(
         tuple((
             terminated(var_name, whitespace),
@@ -246,7 +272,7 @@ fn condition_bool_rhs(input: &str) -> IResult<&str, Condition> {
     )(input)
 }
 
-fn condition_binary_lhs(input: &str) -> IResult<&str, Condition> {
+fn condition_binary_lhs(input: &str) -> IResult<Condition> {
     map(
         tuple((
             terminated(number, whitespace),
@@ -264,7 +290,7 @@ fn condition_binary_lhs(input: &str) -> IResult<&str, Condition> {
     )(input)
 }
 
-fn condition_binary_rhs(input: &str) -> IResult<&str, Condition> {
+fn condition_binary_rhs(input: &str) -> IResult<Condition> {
     map(
         tuple((
             terminated(var_name, whitespace),
@@ -282,7 +308,7 @@ fn condition_binary_rhs(input: &str) -> IResult<&str, Condition> {
     )(input)
 }
 
-fn condition_interval(input: &str) -> IResult<&str, Condition> {
+fn condition_interval(input: &str) -> IResult<Condition> {
     map(
         tuple((
             terminated(var_name, whitespace),
@@ -299,137 +325,155 @@ fn condition_interval(input: &str) -> IResult<&str, Condition> {
     )(input)
 }
 
-fn condition(input: &str) -> IResult<&str, Condition> {
-    alt((
-        condition_binary_lhs,
-        condition_binary_rhs,
-        condition_bool_lhs,
-        condition_bool_rhs,
-        condition_interval,
-    ))(input)
+fn condition(input: &str) -> IResult<Condition> {
+    context(
+        "condition",
+        alt((
+            condition_binary_lhs,
+            condition_binary_rhs,
+            condition_bool_lhs,
+            condition_bool_rhs,
+            condition_interval,
+        )),
+    )(input)
 }
 
-fn conditions(input: &str) -> IResult<&str, ConditionsNode> {
+fn conditions(input: &str) -> IResult<ConditionsNode> {
     map(
         separated_list1(terminated(bool_op, whitespace), condition),
         |conditions| ConditionsNode { conditions },
     )(input)
 }
 
-fn if_statement(input: &str) -> IResult<&str, IfNode> {
-    let (input, _) = terminated(tag("if"), whitespace)(input)?;
-    let (input, _) = terminated(tag("("), whitespace)(input)?;
-    let (input, conditions) = conditions(input)?;
-    let (input, _) = terminated(tag(")"), whitespace)(input)?;
-    let (input, body) = opt(map(
-        tuple((
-            terminated(tag("{"), whitespace),
-            many0(if_statement),
-            terminated(tag("}"), whitespace),
-        )),
-        |(_, body, _)| body,
-    ))(input)?;
-    let (input, else_if_statements) = opt(many1(else_if_statement))(input)?;
-    let (input, else_statement) = opt(else_statement)(input)?;
+fn if_statement(input: &str) -> IResult<IfNode> {
+    context("if statement", |input| {
+        let (input, _) = terminated(tag("if"), whitespace)(input)?;
+        cut(|input| {
+            let (input, _) = terminated(tag("("), whitespace)(input)?;
+            let (input, conditions) = conditions(input)?;
+            let (input, _) = terminated(tag(")"), whitespace)(input)?;
+            let (input, body) = opt(map(
+                tuple((
+                    terminated(tag("{"), whitespace),
+                    many0(if_statement),
+                    terminated(tag("}"), whitespace),
+                )),
+                |(_, body, _)| body,
+            ))(input)?;
+            let (input, else_if_statements) = opt(many1(else_if_statement))(input)?;
+            let (input, else_statement) = opt(else_statement)(input)?;
 
-    let if_node = IfNode {
-        body,
-        conditions,
-        else_if: else_if_statements,
-        else_node: else_statement,
-    };
+            let if_node = IfNode {
+                body,
+                conditions,
+                else_if: else_if_statements,
+                else_node: else_statement,
+            };
 
-    Ok((input, if_node))
+            Ok((input, if_node))
+        })(input)
+    })(input)
 }
 
-fn else_if_statement(input: &str) -> IResult<&str, ElseIfNode> {
-    let (input, _) = terminated(tag("else"), whitespace)(input)?;
-    let (input, _) = terminated(tag("if"), whitespace)(input)?;
-    let (input, _) = terminated(tag("("), whitespace)(input)?;
-    let (input, conditions) = conditions(input)?;
-    let (input, _) = terminated(tag(")"), whitespace)(input)?;
-    let (input, body) = opt(map(
-        tuple((
-            terminated(tag("{"), whitespace),
-            many0(if_statement),
-            terminated(tag("}"), whitespace),
-        )),
-        |(_, body, _)| body,
-    ))(input)?;
+fn else_if_statement(input: &str) -> IResult<ElseIfNode> {
+    context("else if statement", |input| {
+        let (input, _) = terminated(tag("else"), whitespace)(input)?;
+        let (input, _) = terminated(tag("if"), whitespace)(input)?;
+        let (input, _) = terminated(tag("("), whitespace)(input)?;
+        let (input, conditions) = conditions(input)?;
+        let (input, _) = terminated(tag(")"), whitespace)(input)?;
+        let (input, body) = opt(map(
+            tuple((
+                terminated(tag("{"), whitespace),
+                many0(if_statement),
+                terminated(tag("}"), whitespace),
+            )),
+            |(_, body, _)| body,
+        ))(input)?;
 
-    let else_if_node = ElseIfNode { conditions, body };
+        let else_if_node = ElseIfNode { conditions, body };
 
-    Ok((input, else_if_node))
+        Ok((input, else_if_node))
+    })(input)
 }
 
-fn else_statement(input: &str) -> IResult<&str, ElseNode> {
-    let (input, _) = terminated(tag("else"), whitespace)(input)?;
-    let (input, _) = terminated(tag("{"), whitespace)(input)?;
-    let (input, if_statements) = many0(if_statement)(input)?;
-    let (input, _) = terminated(tag("}"), whitespace)(input)?;
+fn else_statement(input: &str) -> IResult<ElseNode> {
+    context("else statement", |input| {
+        let (input, _) = terminated(tag("else"), whitespace)(input)?;
+        let (input, _) = terminated(tag("{"), whitespace)(input)?;
+        let (input, if_statements) = many0(if_statement)(input)?;
+        let (input, _) = terminated(tag("}"), whitespace)(input)?;
 
-    let else_node = ElseNode {
-        body: if_statements,
-    };
+        let else_node = ElseNode {
+            body: if_statements,
+        };
 
-    Ok((input, else_node))
+        Ok((input, else_node))
+    })(input)
 }
 
-// TODO: vardecl, feature
-
-fn parse_float_type(input: &str) -> IResult<&str, Type> {
+fn parse_float_type(input: &str) -> IResult<Type> {
     let (input, _) = terminated(tag("num"), whitespace)(input)?;
     let (input, _) = terminated(tag("("), whitespace)(input)?;
-    let (input, precision) = terminated(float, whitespace)(input)?;
-    let (input, _) = terminated(tag(")"), whitespace)(input)?;
+    cut(|input| {
+        let (input, precision) = terminated(float, whitespace)(input)?;
+        let (input, _) = terminated(tag(")"), whitespace)(input)?;
 
-    Ok((input, Type::Float { precision }))
+        Ok((input, Type::Float { precision }))
+    })(input)
 }
 
-fn parse_bool_type(input: &str) -> IResult<&str, Type> {
+fn parse_bool_type(input: &str) -> IResult<Type> {
     let (input, _) = terminated(tag("bool"), whitespace)(input)?;
 
     Ok((input, Type::Bool))
 }
 
-fn parse_int_type(input: &str) -> IResult<&str, Type> {
+fn parse_int_type(input: &str) -> IResult<Type> {
     let (input, _) = terminated(tag("int"), whitespace)(input)?;
 
     Ok((input, Type::Integer))
 }
 
-fn parse_simple_num_type(input: &str) -> IResult<&str, Type> {
+fn parse_simple_num_type(input: &str) -> IResult<Type> {
     let (input, _) = terminated(tag("num"), whitespace)(input)?;
 
     // TODO: This should be a default num precision somewhere
     Ok((input, Type::Float { precision: 0.01 }))
 }
 
-fn parse_type(input: &str) -> IResult<&str, Type> {
-    alt((
-        parse_bool_type,
-        parse_int_type,
-        complete(parse_float_type),
-        parse_simple_num_type,
-    ))(input)
+fn parse_type(input: &str) -> IResult<Type> {
+    context(
+        "type",
+        alt((
+            parse_bool_type,
+            parse_int_type,
+            complete(parse_float_type),
+            parse_simple_num_type,
+        )),
+    )(input)
 }
 
-fn var_declaration(input: &str) -> IResult<&str, VarNode> {
-    let (input, _) = terminated(tag("var"), whitespace)(input)?;
-    let (input, var_name) = terminated(var_name, whitespace)(input)?;
-    let (input, _) = terminated(tag(":"), whitespace)(input)?;
-    let (input, var_type) = terminated(parse_type, whitespace)(input)?;
+fn var_declaration(input: &str) -> IResult<VarNode> {
+    context("var declaration", |input| {
+        let (input, _) = terminated(tag("var"), whitespace)(input)?;
+        cut(|input| {
+            let (input, var_name) = terminated(var_name, whitespace)(input)?;
+            let (input, _) = terminated(tag(":"), whitespace)(input)?;
+            let (input, var_type) = terminated(parse_type, whitespace)(input)?;
 
-    Ok((input, VarNode { var_name, var_type }))
+            Ok((input, VarNode { var_name, var_type }))
+        })(input)
+    })(input)
 }
 
-fn feature(input: &str) -> IResult<&str, FeatureNode> {
+fn feature(input: &str) -> IResult<FeatureNode> {
     enum VarOrIf<'a> {
         Var(VarNode<'a>),
         If(IfNode<'a>),
     }
 
-    fn var_or_if(input: &str) -> IResult<&str, VarOrIf> {
+    fn var_or_if(input: &str) -> IResult<VarOrIf> {
         alt((
             map(var_declaration, VarOrIf::Var),
             map(if_statement, VarOrIf::If),
@@ -437,8 +481,8 @@ fn feature(input: &str) -> IResult<&str, FeatureNode> {
     }
 
     let (input, _) = terminated(tag("["), whitespace)(input)?;
-    let (input, nodes) = many1(var_or_if)(input)?;
-    let (input, _) = terminated(tag("]"), whitespace)(input)?;
+    let (input, nodes) = cut(many1(var_or_if))(input)?;
+    let (input, _) = cut(terminated(tag("]"), whitespace))(input)?;
 
     let (variables, if_statements) = nodes.into_iter().fold(
         (Vec::new(), Vec::new()),
@@ -460,14 +504,15 @@ fn feature(input: &str) -> IResult<&str, FeatureNode> {
     ))
 }
 
-fn root(input: &str) -> IResult<&str, RootNode> {
+fn root(input: &str) -> IResult<RootNode> {
     let (input, _) = whitespace(input)?;
     let (input, features) = many0(terminated(feature, whitespace))(input)?;
+    let (input, _) = eof(input)?;
 
     Ok((input, RootNode { features }))
 }
 
-pub fn parse_gpt_to_features(input: &str) -> IResult<&str, Vec<Vec<NTuple>>> {
+pub fn parse_gpt_to_features(input: &str) -> IResult<Vec<Vec<NTuple>>> {
     let (input, ast) = root(input)?;
     let ir_features = ast_to_ir::convert_ast_to_ir(&ast);
     let ntuples_for_features = ir_features.iter().map(ir_to_ntuple::ir_to_ntuple).collect();

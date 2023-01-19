@@ -39,9 +39,22 @@ pub fn manual_tester() -> Html {
             is_loading.set(true);
             generated_state.set(None);
 
-            let test_cases = generate_tests_for_gpt_input(&input);
+            match generate_tests_for_gpt_input(&input) {
+                Ok(test_cases) => {
+                    generated_state.set(Some(test_cases));
+                }
+                Err(err) => {
+                    web_sys::window()
+                        .unwrap()
+                        .alert_with_message(&format!(
+                            "Press F12 and see the well formatted error in the console (TODO)\n{}",
+                            err
+                        ))
+                        .unwrap();
+                    log::error!("Error: {}", err);
+                }
+            }
 
-            generated_state.set(Some(test_cases));
             is_loading.set(false);
         })
     };
