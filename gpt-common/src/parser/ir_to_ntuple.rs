@@ -1,4 +1,4 @@
-use crate::dto::{BoolDTO, BoolExpression, Input, IntervalDTO, NTuple};
+use crate::dto::{BoolDTO, BoolExpression, Input, IntervalDTO, NTupleInput};
 
 use super::ir::{self, Feature};
 
@@ -58,7 +58,10 @@ fn convert_condition(variable: ir::Variable, condition: ir::Condition) -> Input 
 //         .collect()
 // }
 
-fn convert_predicate_to_ntuple(variables: &[ir::Variable], predicate: &ir::Predicate) -> NTuple {
+fn convert_predicate_to_ntuple(
+    variables: &[ir::Variable],
+    predicate: &ir::Predicate,
+) -> NTupleInput {
     let inputs = (*variables)
         .iter()
         .map(|variable| {
@@ -72,7 +75,7 @@ fn convert_predicate_to_ntuple(variables: &[ir::Variable], predicate: &ir::Predi
         })
         .collect();
 
-    NTuple { inputs }
+    NTupleInput { inputs }
 }
 
 pub fn ir_to_ntuple(
@@ -80,7 +83,7 @@ pub fn ir_to_ntuple(
         variables,
         predicates,
     }: &Feature,
-) -> Vec<NTuple> {
+) -> Vec<NTupleInput> {
     predicates
         .clone()
         .iter()

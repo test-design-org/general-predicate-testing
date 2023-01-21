@@ -15,20 +15,6 @@ pub struct BoolDTO {
     pub is_constant: bool,
 }
 
-impl Intersectable for BoolDTO {
-    fn intersects_with(&self, other: &Self) -> bool {
-        self.bool_val == other.bool_val
-    }
-
-    fn intersect(&self, other: &Self) -> Option<Self> {
-        if !self.intersects_with(other) {
-            return None;
-        }
-
-        Some(*self)
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Expression {
     LessThan,
@@ -51,22 +37,6 @@ pub struct IntervalDTO {
     pub is_constant: bool,
 }
 
-impl Intersectable for IntervalDTO {
-    fn intersects_with(&self, other: &Self) -> bool {
-        self.interval.intersects_with(&other.interval)
-    }
-
-    fn intersect(&self, other: &Self) -> Option<Self> {
-        let interval = self.interval.intersect(&other.interval)?;
-        Some(Self {
-            expression: self.expression,
-            interval,
-            precision: self.precision,
-            is_constant: self.is_constant,
-        })
-    }
-}
-
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum Input {
     MissingVariable,
@@ -74,11 +44,23 @@ pub enum Input {
     Interval(IntervalDTO),
 }
 
-impl Intersectable for Input {
+#[derive(PartialEq, Clone, Debug)]
+pub struct NTupleInput {
+    pub inputs: Vec<Input>,
+}
+
+#[derive(PartialEq, Clone, Debug, Copy)]
+pub enum Output {
+    MissingVariable,
+    Bool(bool),
+    Interval(Interval),
+}
+
+impl Intersectable for Output {
     fn intersects_with(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::MissingVariable, _) | (_, Self::MissingVariable) => true,
-            (Self::Bool(this), Self::Bool(that)) => this.intersects_with(that),
+            (Self::Bool(this), Self::Bool(that)) => this == that,
             (Self::Interval(this), Self::Interval(that)) => this.intersects_with(that),
             (_, _) => false,
         }
@@ -90,14 +72,14 @@ impl Intersectable for Input {
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct NTuple {
-    pub inputs: Vec<Input>,
+pub struct NTupleOutput {
+    pub outputs: Vec<Output>,
 }
 
-impl Intersectable for NTuple {
+impl Intersectable for NTupleOutput {
     fn intersects_with(&self, other: &Self) -> bool {
-        self.inputs.len() == other.inputs.len()
-            && zip(&self.inputs, &other.inputs).all(|(a, b)| a.intersects_with(b))
+        self.outputs.len() == other.outputs.len()
+            && zip(&self.outputs, &other.outputs).all(|(a, b)| a.intersects_with(b))
     }
 
     fn intersect(&self, other: &Self) -> Option<Self> {
@@ -105,12 +87,12 @@ impl Intersectable for NTuple {
             return None;
         }
 
-        let intersected_inputs: Vec<Input> = zip(&self.inputs, &other.inputs)
+        let intersected_inputs: Vec<Output> = zip(&self.outputs, &other.outputs)
                 .map(|(a, b)| a.intersect(b).expect("When intersecting an NTuple, we checked that each input should intersect, so they should intersect"))
                 .collect();
 
         Some(Self {
-            inputs: intersected_inputs,
+            outputs: intersected_inputs,
         })
     }
 }

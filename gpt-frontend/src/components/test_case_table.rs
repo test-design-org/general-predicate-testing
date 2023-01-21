@@ -1,11 +1,11 @@
-use gpt_common::{dto::NTuple, test_value_generator::generate_test_value};
+use gpt_common::{dto::NTupleOutput, test_value_generator::generate_test_value};
 use yew::prelude::*;
 
 #[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     // variables: Vec<String>,
     // graph: String,
-    pub test_cases: Vec<NTuple>,
+    pub test_cases: Vec<NTupleOutput>,
 }
 
 #[function_component(TestCaseTable)]
@@ -54,7 +54,7 @@ pub fn test_case_table(props: &Props) -> Html {
         { (props.test_cases).clone().into_iter().map(|n_tuple| {
             html!{
                 <tr>
-           {n_tuple.inputs.into_iter().map(|input| html!{ <td> { generate_test_value(&input, *show_interval_values) } </td>}).collect::<Html>()}
+           {n_tuple.outputs.into_iter().map(|input| html!{ <td> { generate_test_value(&input, *show_interval_values) } </td>}).collect::<Html>()}
             </tr>
             }
         }).collect::<Html>() }

@@ -1,15 +1,15 @@
-use crate::dto::{BoolDTO, BoolExpression, Expression};
+use crate::dto::{BoolDTO, BoolExpression, Expression, NTupleOutput, Output};
 use crate::interval::Interval;
 use crate::util::UniquesVec;
 
 use crate::{
-    dto::{Input, IntervalDTO, NTuple},
+    dto::{Input, IntervalDTO, NTupleInput},
     interval::{Boundary, IntervalError},
 };
 
 pub fn generate_test_cases_for_multiple_features(
-    features: &Vec<Vec<NTuple>>,
-) -> Result<Vec<NTuple>, IntervalError> {
+    features: &Vec<Vec<NTupleInput>>,
+) -> Result<Vec<NTupleOutput>, IntervalError> {
     let mut res = Vec::new();
     for feature in features {
         let mut test_cases = generate_test_cases_for_feature(feature)?;
@@ -18,7 +18,9 @@ pub fn generate_test_cases_for_multiple_features(
     Ok(res)
 }
 
-fn generate_test_cases_for_feature(n_tuples: &[NTuple]) -> Result<Vec<NTuple>, IntervalError> {
+fn generate_test_cases_for_feature(
+    n_tuples: &[NTupleInput],
+) -> Result<Vec<NTupleOutput>, IntervalError> {
     let inputs = n_tuples
         .iter()
         .flat_map(|x| x.inputs.clone())
@@ -26,16 +28,16 @@ fn generate_test_cases_for_feature(n_tuples: &[NTuple]) -> Result<Vec<NTuple>, I
     generate_test_cases_for_inputs(&inputs)
 }
 
-fn generate_test_cases_for_inputs(inputs: &[Input]) -> Result<Vec<NTuple>, IntervalError> {
+fn generate_test_cases_for_inputs(inputs: &[Input]) -> Result<Vec<NTupleOutput>, IntervalError> {
     let mut modified_inputs = vec![
         calculate_in_on_patterns1(inputs)?,
         calculate_in_on_patterns2(inputs)?,
     ];
     modified_inputs.extend(off_out(inputs)?);
 
-    let mut n_tuples: Vec<NTuple> = modified_inputs
+    let mut n_tuples: Vec<NTupleOutput> = modified_inputs
         .into_iter()
-        .map(|inputs| NTuple { inputs })
+        .map(|outputs| NTupleOutput { outputs })
         .collect();
 
     n_tuples = n_tuples.uniques();
@@ -43,60 +45,75 @@ fn generate_test_cases_for_inputs(inputs: &[Input]) -> Result<Vec<NTuple>, Inter
     Ok(n_tuples)
 }
 
-fn calculate_in_on_patterns1(inputs: &[Input]) -> Result<Vec<Input>, IntervalError> {
+fn calculate_in_on_patterns1(inputs: &[Input]) -> Result<Vec<Output>, IntervalError> {
     inputs
         .iter()
-        .map(|input| match input {
-            Input::Bool(_) | Input::MissingVariable => Ok(*input),
-            Input::Interval(IntervalDTO { is_constant, .. }) if *is_constant => Ok(*input),
-            Input::Interval(interval_dto) => match interval_dto.expression {
-                Expression::LessThan | Expression::LessThanOrEqualTo => {
-                    in_in(interval_dto, InInVersion::IntervalRight)
-                }
-
-                Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
-
-                Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
-                    in_in(interval_dto, InInVersion::IntervalLeft)
-                }
-
-                Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalRight),
-                Expression::Interval => Ok(on(interval_dto, OnVersion::IntervalLeft)),
-            },
-        })
-        .collect()
-}
-
-fn calculate_in_on_patterns2(inputs: &[Input]) -> Result<Vec<Input>, IntervalError> {
-    inputs
-        .iter()
-        .map(|input| match input {
-            Input::Bool(_) | Input::MissingVariable => Ok(*input),
-            Input::Interval(IntervalDTO { is_constant, .. }) if *is_constant => Ok(*input),
-            Input::Interval(interval_dto) => match interval_dto.expression {
-                Expression::LessThan | Expression::LessThanOrEqualTo => {
-                    Ok(on(interval_dto, OnVersion::IntervalRight))
-                }
-
-                Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
-
-                Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
-                    Ok(on(interval_dto, OnVersion::IntervalLeft))
-                }
-
-                Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalLeft),
-                Expression::Interval => Ok(on(interval_dto, OnVersion::IntervalRight)),
-            },
-        })
-        .collect()
-}
-
-fn baseline(inputs: &[Input]) -> Result<Vec<Input>, IntervalError> {
-    inputs
-        .iter()
-        .map(|input| -> Result<Input, IntervalError> {
+        .map(|input| -> Result<Output, IntervalError> {
             match input {
-                Input::Bool(_) | Input::MissingVariable => Ok(*input),
+                Input::MissingVariable => Ok(Output::MissingVariable),
+                Input::Bool(BoolDTO { bool_val, .. }) => Ok(Output::Bool(*bool_val)),
+                Input::Interval(IntervalDTO {
+                    is_constant,
+                    interval,
+                    ..
+                }) if *is_constant => Ok(Output::Interval(*interval)),
+                Input::Interval(interval_dto) => match interval_dto.expression {
+                    Expression::LessThan | Expression::LessThanOrEqualTo => {
+                        in_in(interval_dto, InInVersion::IntervalRight)
+                    }
+
+                    Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
+
+                    Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
+                        in_in(interval_dto, InInVersion::IntervalLeft)
+                    }
+
+                    Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalRight),
+                    Expression::Interval => Ok(on(interval_dto, OnVersion::IntervalLeft)),
+                },
+            }
+        })
+        .collect()
+}
+
+fn calculate_in_on_patterns2(inputs: &[Input]) -> Result<Vec<Output>, IntervalError> {
+    inputs
+        .iter()
+        .map(|input| -> Result<Output, IntervalError> {
+            match input {
+                Input::MissingVariable => Ok(Output::MissingVariable),
+                Input::Bool(BoolDTO { bool_val, .. }) => Ok(Output::Bool(*bool_val)),
+                Input::Interval(IntervalDTO {
+                    is_constant,
+                    interval,
+                    ..
+                }) if *is_constant => Ok(Output::Interval(*interval)),
+                Input::Interval(interval_dto) => match interval_dto.expression {
+                    Expression::LessThan | Expression::LessThanOrEqualTo => {
+                        Ok(on(interval_dto, OnVersion::IntervalRight))
+                    }
+
+                    Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
+
+                    Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
+                        Ok(on(interval_dto, OnVersion::IntervalLeft))
+                    }
+
+                    Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalLeft),
+                    Expression::Interval => Ok(on(interval_dto, OnVersion::IntervalRight)),
+                },
+            }
+        })
+        .collect()
+}
+
+fn baseline(inputs: &[Input]) -> Result<Vec<Output>, IntervalError> {
+    inputs
+        .iter()
+        .map(|input| -> Result<Output, IntervalError> {
+            match input {
+                Input::MissingVariable => Ok(Output::MissingVariable),
+                Input::Bool(BoolDTO { bool_val, .. }) => Ok(Output::Bool(*bool_val)),
                 Input::Interval(interval_dto) => match interval_dto.expression {
                     Expression::LessThan | Expression::LessThanOrEqualTo => {
                         calc_in(interval_dto, InVersion::IntervalRight)
@@ -114,8 +131,8 @@ fn baseline(inputs: &[Input]) -> Result<Vec<Input>, IntervalError> {
         .collect()
 }
 
-fn off_out(inputs: &[Input]) -> Result<Vec<Vec<Input>>, IntervalError> {
-    let mut output: Vec<Vec<Input>> = Vec::new();
+fn off_out(inputs: &[Input]) -> Result<Vec<Vec<Output>>, IntervalError> {
+    let mut output: Vec<Vec<Output>> = Vec::new();
 
     for (i, input) in inputs.iter().enumerate() {
         match input {
@@ -134,19 +151,11 @@ fn off_out(inputs: &[Input]) -> Result<Vec<Vec<Input>>, IntervalError> {
             Input::MissingVariable => (),
             Input::Bool(BoolDTO { expression, .. }) => match expression {
                 BoolExpression::IsTrue => {
-                    based1[i] = Input::Bool(BoolDTO {
-                        expression: *expression,
-                        bool_val: false,
-                        is_constant: false,
-                    });
+                    based1[i] = Output::Bool(false);
                     output.push(based1);
                 }
                 BoolExpression::IsFalse => {
-                    based1[i] = Input::Bool(BoolDTO {
-                        expression: *expression,
-                        bool_val: true,
-                        is_constant: false,
-                    });
+                    based1[i] = Output::Bool(true);
                     output.push(based1);
                 }
             },
@@ -201,7 +210,7 @@ enum OnVersion {
     IntervalLeft,
 }
 
-fn on(input: &IntervalDTO, version: OnVersion) -> Input {
+fn on(input: &IntervalDTO, version: OnVersion) -> Output {
     let interval = match version {
         // ==
         OnVersion::IntervalEqual => input.interval,
@@ -225,12 +234,7 @@ fn on(input: &IntervalDTO, version: OnVersion) -> Input {
         ),
     };
 
-    Input::Interval(IntervalDTO {
-        expression: input.expression,
-        interval,
-        precision: input.precision,
-        is_constant: false,
-    })
+    Output::Interval(interval)
 }
 
 enum InVersion {
@@ -239,7 +243,7 @@ enum InVersion {
     Interval,
 }
 
-fn calc_in(input: &IntervalDTO, version: InVersion) -> Result<Input, IntervalError> {
+fn calc_in(input: &IntervalDTO, version: InVersion) -> Result<Output, IntervalError> {
     let interval = match version {
         // <, <=
         InVersion::IntervalRight => Interval::new_closed(
@@ -278,12 +282,7 @@ fn calc_in(input: &IntervalDTO, version: InVersion) -> Result<Input, IntervalErr
         )?,
     };
 
-    Ok(Input::Interval(IntervalDTO {
-        expression: input.expression,
-        interval,
-        precision: input.precision,
-        is_constant: false,
-    }))
+    Ok(Output::Interval(interval))
 }
 
 enum InInVersion {
@@ -291,7 +290,7 @@ enum InInVersion {
     IntervalLeft,
 }
 
-fn in_in(input: &IntervalDTO, version: InInVersion) -> Result<Input, IntervalError> {
+fn in_in(input: &IntervalDTO, version: InInVersion) -> Result<Output, IntervalError> {
     let interval = match version {
         // <, <=
         InInVersion::IntervalRight => Interval::new_closed(
@@ -315,19 +314,14 @@ fn in_in(input: &IntervalDTO, version: InInVersion) -> Result<Input, IntervalErr
         )?,
     };
 
-    Ok(Input::Interval(IntervalDTO {
-        expression: input.expression,
-        interval,
-        precision: input.precision,
-        is_constant: false,
-    }))
+    Ok(Output::Interval(interval))
 }
 enum OffVersion {
     IntervalRight,
     IntervalLeft,
 }
 
-fn off(input: &IntervalDTO, version: OffVersion) -> Input {
+fn off(input: &IntervalDTO, version: OffVersion) -> Output {
     let interval = match version {
         // <, <=, Interval Right, == right
         OffVersion::IntervalRight => Interval::new_closed_point(
@@ -349,12 +343,7 @@ fn off(input: &IntervalDTO, version: OffVersion) -> Input {
         ),
     };
 
-    Input::Interval(IntervalDTO {
-        expression: input.expression,
-        interval,
-        precision: input.precision,
-        is_constant: false,
-    })
+    Output::Interval(interval)
 }
 
 enum OutVersion {
@@ -364,7 +353,7 @@ enum OutVersion {
     Left,
 }
 
-fn out(input: &IntervalDTO, version: OutVersion) -> Result<Input, IntervalError> {
+fn out(input: &IntervalDTO, version: OutVersion) -> Result<Output, IntervalError> {
     let interval = match version {
         // <, <=, Interval Right
         OutVersion::IntervalRight => Interval::new_closed(
@@ -396,18 +385,16 @@ fn out(input: &IntervalDTO, version: OutVersion) -> Result<Input, IntervalError>
         }
     };
 
-    Ok(Input::Interval(IntervalDTO {
-        expression: input.expression,
-        interval,
-        precision: input.precision,
-        is_constant: false,
-    }))
+    Ok(Output::Interval(interval))
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        dto::{BoolDTO, BoolExpression, Expression, Input, IntervalDTO, NTuple},
+        dto::{
+            BoolDTO, BoolExpression, Expression, Input, IntervalDTO, NTupleInput, NTupleOutput,
+            Output,
+        },
         interval::{Boundary, Interval},
     };
 
@@ -432,85 +419,40 @@ mod tests {
             Input::MissingVariable,
         ];
 
-        let expected: Vec<NTuple> = vec![
-            NTuple {
-                inputs: vec![
-                    Input::Bool(BoolDTO {
-                        expression: BoolExpression::IsTrue,
-                        bool_val: true,
-                        is_constant: false,
-                    }),
-                    Input::Interval(IntervalDTO {
-                        expression: Expression::LessThan,
-                        interval: Interval::new_closed(f32::NEG_INFINITY, 49.98).unwrap(),
-                        precision: 0.01,
-                        is_constant: false,
-                    }),
-                    Input::MissingVariable,
+        let expected: Vec<NTupleOutput> = vec![
+            NTupleOutput {
+                outputs: vec![
+                    Output::Bool(true),
+                    Output::Interval(Interval::new_closed(f32::NEG_INFINITY, 49.98).unwrap()),
+                    Output::MissingVariable,
                 ],
             },
-            NTuple {
-                inputs: vec![
-                    Input::Bool(BoolDTO {
-                        expression: BoolExpression::IsTrue,
-                        bool_val: true,
-                        is_constant: false,
-                    }),
-                    Input::Interval(IntervalDTO {
-                        expression: Expression::LessThan,
-                        interval: Interval::new_closed_point(49.99),
-                        precision: 0.01,
-                        is_constant: false,
-                    }),
-                    Input::MissingVariable,
+            NTupleOutput {
+                outputs: vec![
+                    Output::Bool(true),
+                    Output::Interval(Interval::new_closed_point(49.99)),
+                    Output::MissingVariable,
                 ],
             },
-            NTuple {
-                inputs: vec![
-                    Input::Bool(BoolDTO {
-                        expression: BoolExpression::IsTrue,
-                        bool_val: false,
-                        is_constant: false,
-                    }),
-                    Input::Interval(IntervalDTO {
-                        expression: Expression::LessThan,
-                        interval: Interval::new_closed(f32::NEG_INFINITY, 49.99).unwrap(),
-                        precision: 0.01,
-                        is_constant: false,
-                    }),
-                    Input::MissingVariable,
+            NTupleOutput {
+                outputs: vec![
+                    Output::Bool(false),
+                    Output::Interval(Interval::new_closed(f32::NEG_INFINITY, 49.99).unwrap()),
+                    Output::MissingVariable,
                 ],
             },
-            NTuple {
-                inputs: vec![
-                    Input::Bool(BoolDTO {
-                        expression: BoolExpression::IsTrue,
-                        bool_val: true,
-                        is_constant: false,
-                    }),
-                    Input::Interval(IntervalDTO {
-                        expression: Expression::LessThan,
-                        interval: Interval::new_closed(50.01, f32::INFINITY).unwrap(),
-                        precision: 0.01,
-                        is_constant: false,
-                    }),
-                    Input::MissingVariable,
+            NTupleOutput {
+                outputs: vec![
+                    Output::Bool(true),
+                    Output::Interval(Interval::new_closed(50.01, f32::INFINITY).unwrap()),
+                    Output::MissingVariable,
                 ],
             },
-            NTuple {
-                inputs: vec![
-                    Input::Bool(BoolDTO {
-                        expression: BoolExpression::IsTrue,
-                        bool_val: true,
-                        is_constant: false,
-                    }),
-                    Input::Interval(IntervalDTO {
-                        expression: Expression::LessThan,
-                        interval: Interval::new_closed_point(50.0),
-                        precision: 0.01,
-                        is_constant: false,
-                    }),
-                    Input::MissingVariable,
+            NTupleOutput {
+                outputs: vec![
+                    Output::Bool(true),
+                    Output::Interval(Interval::new_closed_point(50.0)),
+                    Output::MissingVariable,
                 ],
             },
         ];
