@@ -2,7 +2,9 @@ use gpt_common::{dto::NTuple, generate_tests_for_gpt_input};
 use yew::prelude::*;
 
 use crate::{
-    components::{test_case_table::TestCaseTable, usage_guide::UsageGuide},
+    components::{
+        error_display::ErrorDisplay, test_case_table::TestCaseTable, usage_guide::UsageGuide,
+    },
     text_input::TextInput,
 };
 
@@ -29,7 +31,7 @@ pub fn manual_tester() -> Html {
     "#
         .to_owned()
     });
-    let generated_state = use_state(|| Some(Vec::<NTuple>::new()));
+    let generated_state = use_state(|| Some(Ok(Vec::<NTuple>::new())));
 
     let toggle_button_onclick = {
         let is_loading = is_loading.clone();
@@ -41,17 +43,11 @@ pub fn manual_tester() -> Html {
 
             match generate_tests_for_gpt_input(&input) {
                 Ok(test_cases) => {
-                    generated_state.set(Some(test_cases));
+                    generated_state.set(Some(Ok(test_cases)));
                 }
                 Err(err) => {
-                    web_sys::window()
-                        .unwrap()
-                        .alert_with_message(&format!(
-                            "Press F12 and see the well formatted error in the console (TODO)\n{}",
-                            err
-                        ))
-                        .unwrap();
                     log::error!("Error: {}", err);
+                    generated_state.set(Some(Err(err)));
                 }
             }
 
@@ -105,12 +101,14 @@ pub fn manual_tester() -> Html {
 
       <div class="rightOutput">
         if !*is_loading {
-        if let Some(state) = &*generated_state {
-          <TestCaseTable
-            // variables={state.variables}
-            // graph={state.graph}
-            test_cases={state.clone()}
-          />
+        if let Some(Ok(state)) = &*generated_state {
+            <TestCaseTable
+              // variables={state.variables}
+              // graph={state.graph}
+              test_cases={state.clone()}
+            />
+        } else if let Some(Err(err)) = &*generated_state {
+          <ErrorDisplay error_text={err.to_string()} />
         }}
       </div>
     </div>
