@@ -1,4 +1,7 @@
-use gpt_common::{dto::NTupleOutput, generate_tests_for_gpt_input};
+use gpt_common::{
+    dto::NTupleOutput, generate_tests_for_gpt_input, graph_reduction::create_graph,
+    graph_reduction::create_graph_url,
+};
 use yew::prelude::*;
 
 use crate::{
@@ -43,6 +46,9 @@ pub fn manual_tester() -> Html {
 
             match generate_tests_for_gpt_input(&input) {
                 Ok(test_cases) => {
+                    let graph = create_graph(&test_cases);
+                    log::debug!("{}", create_graph_url(&graph));
+
                     generated_state.set(Some(Ok(test_cases)));
                 }
                 Err(err) => {
