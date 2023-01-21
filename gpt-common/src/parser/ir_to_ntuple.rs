@@ -15,7 +15,7 @@ const fn convert_bool_dto(condition: &ir::BoolCondition) -> BoolDTO {
     }
 }
 
-fn convert_interval_dto(variable: ir::Variable, condition: &ir::IntervalCondition) -> IntervalDTO {
+fn convert_interval_dto(variable: &ir::Variable, condition: &ir::IntervalCondition) -> IntervalDTO {
     let precision = variable.var_type.get_precision().expect("Type error: when converting an interval dto in convert_interval_dto, the variable type doesn't have a precision!");
 
     IntervalDTO {
@@ -26,7 +26,7 @@ fn convert_interval_dto(variable: ir::Variable, condition: &ir::IntervalConditio
     }
 }
 
-fn convert_condition(variable: ir::Variable, condition: ir::Condition) -> Input {
+fn convert_condition(variable: &ir::Variable, condition: ir::Condition) -> Input {
     match condition {
         ir::Condition::Bool(cond) => Input::Bool(convert_bool_dto(&cond)),
         ir::Condition::Interval(cond) => Input::Interval(convert_interval_dto(variable, &cond)),
@@ -62,16 +62,19 @@ fn convert_predicate_to_ntuple(
     variables: &[ir::Variable],
     predicate: &ir::Predicate,
 ) -> NTupleInput {
-    let inputs = (*variables)
-        .iter()
-        .map(|variable| {
-            predicate
-                .clone()
-                .into_iter()
-                .find(|cond| cond.get_variable() == variable.var_name)
-                .map_or(Input::MissingVariable, |cond| {
-                    convert_condition(*variable, cond)
-                })
+    let inputs = predicate
+        .clone()
+        .into_iter()
+        .map(|condition| {
+            let variable = variables
+                .iter()
+                .find(|variable| condition.get_variable() == variable.var_name)
+                // TODO: This should be an actual error in a Result type
+                .expect(&format!("Undefined variable: {}", condition.get_variable()));
+            (
+                variable.var_name.to_owned(),
+                convert_condition(variable, condition),
+            )
         })
         .collect();
 
