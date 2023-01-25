@@ -313,6 +313,7 @@ name = "gpt-common"
 version = "0.1.0"
 dependencies = [
  "nom",
+ "thiserror",
 ]
 
 [[package]]
