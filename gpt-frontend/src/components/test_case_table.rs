@@ -26,7 +26,7 @@ fn create_test_case_table<'a>(
         ntuples
             .iter()
             .flat_map(|ntuple| ntuple.outputs.keys())
-            .map(|x| x.clone()),
+            .cloned(),
     )
     .into_iter()
     .collect();
@@ -34,7 +34,6 @@ fn create_test_case_table<'a>(
     variables.sort();
 
     let output = ntuples
-        .clone()
         .into_iter()
         .map(|ntuple| sort_outputs_into_varible_columns(&variables, ntuple))
         .collect();
@@ -99,7 +98,7 @@ pub fn test_case_table(props: &Props) -> Html {
                   <td>
                     {match output {
                       None => "*".to_owned(),
-                      Some(output) => generate_test_value(&output, *show_interval_values),
+                      Some(output) => generate_test_value(output, *show_interval_values),
                     }}
                   </td>
                 }).collect::<Html>()}

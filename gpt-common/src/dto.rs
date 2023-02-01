@@ -84,7 +84,7 @@ impl Intersectable for NTupleOutput {
             }
         }
 
-        return true;
+        true
     }
 
     fn intersect(&self, other: &Self) -> Option<Self> {
@@ -95,19 +95,18 @@ impl Intersectable for NTupleOutput {
         let var_names_in_both =
             HashSet::<&String>::from_iter(self.outputs.keys().chain(other.outputs.keys()));
 
-        let intersected_outputs: HashMap<String, Output> = var_names_in_both.iter().map(|var_name| {
-            let var_name = &*(var_name.clone());
+        let intersected_outputs: HashMap<String, Output> = var_names_in_both.iter().filter_map(|var_name| {
+            let var_name = (*var_name).clone();
             let intersection = match (self.outputs.get(&*var_name), other.outputs.get(&*var_name)) {
                 (None, None) => panic!("in NTuple intersection, variable name should be at least in one of the maps, because we use keys from the maps"),
-                (Some(x), None) => Some(x.clone()),
-                (None, Some(y)) => Some(y.clone()),
+                (Some(x), None) => Some(*x),
+                (None, Some(y)) => Some(*y),
                 (Some(x), Some(y)) => x.intersect(y),
             }?;
 
             Some((var_name, intersection))
         })
-        .filter_map(|x| x)
-        .map(|(var_name, input)| (var_name.clone(), input))
+        .map(|(var_name, input)| (var_name, input))
         .collect::<HashMap<String, Output>>();
 
         Some(Self {
