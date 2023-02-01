@@ -32,7 +32,7 @@ use self::ast::Type;
 use self::ast::VarNode;
 use self::ast::{BinaryOp, BoolOp, Condition, EqOp, IntervalOp};
 
-use super::dto::NTuple;
+use super::dto::NTupleInput;
 
 pub mod ast;
 mod ast_to_ir;
@@ -512,7 +512,7 @@ fn root(input: &str) -> IResult<RootNode> {
     Ok((input, RootNode { features }))
 }
 
-pub fn parse_gpt_to_features(input: &str) -> IResult<Vec<Vec<NTuple>>> {
+pub fn parse_gpt_to_features(input: &str) -> IResult<Vec<Vec<NTupleInput>>> {
     let (input, ast) = root(input)?;
     let ir_features = ast_to_ir::convert_ast_to_ir(&ast);
     let ntuples_for_features = ir_features.iter().map(ir_to_ntuple::ir_to_ntuple).collect();

@@ -1,16 +1,63 @@
-use gpt_common::{dto::NTuple, test_value_generator::generate_test_value};
+use std::collections::HashSet;
+
+use gpt_common::{
+    dto::{NTupleOutput, Output},
+    test_value_generator::generate_test_value,
+};
 use yew::prelude::*;
+
+/// This takes for example the variable columns of (x, y, z) and the map of {y: 10, x: 30} into [30, 10, *]
+fn sort_outputs_into_varible_columns<'a>(
+    variable_order: &Vec<String>,
+    ntuple: NTupleOutput,
+) -> Vec<Option<Output>> {
+    variable_order
+        .iter()
+        .map(|var_name| ntuple.outputs.get(&*var_name.clone()).map(|x| *x))
+        .collect()
+}
+
+fn create_test_case_table<'a>(
+    ntuples: &Vec<NTupleOutput>,
+) -> (Vec<String>, Vec<Vec<Option<Output>>>) {
+    let ntuples = ntuples.clone();
+
+    let mut variables: Vec<String> = HashSet::<String>::from_iter(
+        ntuples
+            .iter()
+            .flat_map(|ntuple| ntuple.outputs.keys())
+            .cloned(),
+    )
+    .into_iter()
+    .collect();
+
+    variables.sort();
+
+    let output = ntuples
+        .into_iter()
+        .map(|ntuple| sort_outputs_into_varible_columns(&variables, ntuple))
+        .collect();
+
+    (variables, output)
+}
 
 #[derive(Clone, PartialEq, Properties)]
 pub struct Props {
     // variables: Vec<String>,
     // graph: String,
-    pub test_cases: Vec<NTuple>,
+    pub test_cases: Vec<NTupleOutput>,
 }
 
 #[function_component(TestCaseTable)]
 pub fn test_case_table(props: &Props) -> Html {
     let show_interval_values = use_state(|| false);
+    let test_case_table_data = {
+        let props = props.clone();
+        use_memo(
+            |test_cases| create_test_case_table(&test_cases.clone()),
+            props.test_cases,
+        )
+    };
 
     html! {
         <div class="testCaseTable">
@@ -34,30 +81,29 @@ pub fn test_case_table(props: &Props) -> Html {
       </span>
 
       <table class="testValueTable">
-        // <thead>
-        //   <tr>
-        //     <th></th>
-        //     {variables.map((x) => (
-        //       <th>{x.name}</th>
-        //     ))}
-        //   </tr>
-        // </thead>
+        <thead>
+          <tr>
+            <th></th>
+            {(*test_case_table_data.0).iter().map(|var_name|
+              html! { <th>{var_name}</th> }
+            ).collect::<Html>()}
+          </tr>
+        </thead>
         <tbody>
-        //   {graph.nodes.map((nNuple, index) => (
-        //     <tr>
-        //       <td>T{index + 1}</td>
-        //       {nNuple.list.map((x) => (
-        //         <td>{generateTestValue(x, showIntervalValues)}</td>
-        //       ))}
-        //     </tr>
-        //   ))}
-        { (props.test_cases).clone().into_iter().map(|n_tuple| {
+        { (*test_case_table_data.1).iter().enumerate().map(|(index, outputs)|
             html!{
-                <tr>
-           {n_tuple.inputs.into_iter().map(|input| html!{ <td> { generate_test_value(&input, *show_interval_values) } </td>}).collect::<Html>()}
-            </tr>
-            }
-        }).collect::<Html>() }
+              <tr>
+                <td>{index + 1}</td>
+                {(*outputs).iter().map(|output| html! {
+                  <td>
+                    {match output {
+                      None => "*".to_owned(),
+                      Some(output) => generate_test_value(output, *show_interval_values),
+                    }}
+                  </td>
+                }).collect::<Html>()}
+              </tr>
+            }).collect::<Html>()}
         </tbody>
       </table>
     </div>

@@ -1,16 +1,16 @@
-use crate::dto::{BoolDTO, Input, IntervalDTO};
+use crate::dto::Output;
 
-pub fn generate_test_value(input: &Input, show_interval_values: bool) -> String {
-    match input {
-        Input::MissingVariable => "*".to_owned(),
-        Input::Bool(BoolDTO { bool_val, .. }) => {
+pub fn generate_test_value(output: &Output, show_interval_values: bool) -> String {
+    match output {
+        Output::MissingVariable => "*".to_owned(),
+        Output::Bool(bool_val) => {
             if *bool_val == true {
                 "true".to_owned()
             } else {
                 "false".to_owned()
             }
         }
-        Input::Interval(IntervalDTO { interval, .. }) => {
+        Output::Interval(interval) => {
             if show_interval_values {
                 format!("{:?}", interval)
             } else {

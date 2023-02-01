@@ -1,4 +1,4 @@
-use std::iter::zip;
+use std::collections::{HashMap, HashSet};
 
 use crate::interval::{Intersectable, Interval};
 
@@ -13,20 +13,6 @@ pub struct BoolDTO {
     pub expression: BoolExpression,
     pub bool_val: bool,
     pub is_constant: bool,
-}
-
-impl Intersectable for BoolDTO {
-    fn intersects_with(&self, other: &Self) -> bool {
-        self.bool_val == other.bool_val
-    }
-
-    fn intersect(&self, other: &Self) -> Option<Self> {
-        if !self.intersects_with(other) {
-            return None;
-        }
-
-        Some(*self)
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -51,34 +37,28 @@ pub struct IntervalDTO {
     pub is_constant: bool,
 }
 
-impl Intersectable for IntervalDTO {
-    fn intersects_with(&self, other: &Self) -> bool {
-        self.interval.intersects_with(&other.interval)
-    }
-
-    fn intersect(&self, other: &Self) -> Option<Self> {
-        let interval = self.interval.intersect(&other.interval)?;
-        Some(Self {
-            expression: self.expression,
-            interval,
-            precision: self.precision,
-            is_constant: self.is_constant,
-        })
-    }
-}
-
 #[derive(PartialEq, Clone, Debug, Copy)]
 pub enum Input {
-    MissingVariable,
     Bool(BoolDTO),
     Interval(IntervalDTO),
 }
 
-impl Intersectable for Input {
+#[derive(PartialEq, Clone, Debug)]
+pub struct NTupleInput {
+    pub inputs: HashMap<String, Input>,
+}
+
+#[derive(PartialEq, Clone, Debug, Copy)]
+pub enum Output {
+    MissingVariable,
+    Bool(bool),
+    Interval(Interval),
+}
+
+impl Intersectable for Output {
     fn intersects_with(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::MissingVariable, _) | (_, Self::MissingVariable) => true,
-            (Self::Bool(this), Self::Bool(that)) => this.intersects_with(that),
+            (Self::Bool(this), Self::Bool(that)) => this == that,
             (Self::Interval(this), Self::Interval(that)) => this.intersects_with(that),
             (_, _) => false,
         }
@@ -90,14 +70,21 @@ impl Intersectable for Input {
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct NTuple {
-    pub inputs: Vec<Input>,
+pub struct NTupleOutput {
+    pub outputs: HashMap<String, Output>,
 }
 
-impl Intersectable for NTuple {
+impl Intersectable for NTupleOutput {
     fn intersects_with(&self, other: &Self) -> bool {
-        self.inputs.len() == other.inputs.len()
-            && zip(&self.inputs, &other.inputs).all(|(a, b)| a.intersects_with(b))
+        for (var_name, input) in self.outputs.iter() {
+            if let Some(other_input) = other.outputs.get(var_name) {
+                if !input.intersects_with(other_input) {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 
     fn intersect(&self, other: &Self) -> Option<Self> {
@@ -105,12 +92,92 @@ impl Intersectable for NTuple {
             return None;
         }
 
-        let intersected_inputs: Vec<Input> = zip(&self.inputs, &other.inputs)
-                .map(|(a, b)| a.intersect(b).expect("When intersecting an NTuple, we checked that each input should intersect, so they should intersect"))
-                .collect();
+        let var_names_in_both =
+            HashSet::<&String>::from_iter(self.outputs.keys().chain(other.outputs.keys()));
+
+        let intersected_outputs: HashMap<String, Output> = var_names_in_both.iter().filter_map(|var_name| {
+            let var_name = (*var_name).clone();
+            let intersection = match (self.outputs.get(&*var_name), other.outputs.get(&*var_name)) {
+                (None, None) => panic!("in NTuple intersection, variable name should be at least in one of the maps, because we use keys from the maps"),
+                (Some(x), None) => Some(*x),
+                (None, Some(y)) => Some(*y),
+                (Some(x), Some(y)) => x.intersect(y),
+            }?;
+
+            Some((var_name, intersection))
+        })
+        .map(|(var_name, input)| (var_name, input))
+        .collect::<HashMap<String, Output>>();
 
         Some(Self {
-            inputs: intersected_inputs,
+            outputs: intersected_outputs,
         })
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use std::collections::HashMap;
+
+    use super::{Input, NTupleInput, NTupleOutput, Output};
+    use crate::interval::{test::int, Intersectable};
+
+    pub fn create_ntuple_input(inputs: Vec<(String, Input)>) -> NTupleInput {
+        NTupleInput {
+            inputs: HashMap::from_iter(inputs.into_iter()),
+        }
+    }
+
+    pub fn create_ntuple_output(outputs: Vec<(String, Output)>) -> NTupleOutput {
+        NTupleOutput {
+            outputs: HashMap::from_iter(outputs.into_iter()),
+        }
+    }
+
+    #[test]
+    fn test_ntuple_intersects_with() {
+        // Same
+        assert!(create_ntuple_output(vec![
+            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("y".to_owned(), Output::Bool(true))
+        ])
+        .intersects_with(&create_ntuple_output(vec![
+            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("y".to_owned(), Output::Bool(true))
+        ])));
+
+        // Non intersectable same variables
+        assert!(!create_ntuple_output(vec![
+            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("y".to_owned(), Output::Bool(true))
+        ])
+        .intersects_with(&create_ntuple_output(vec![
+            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("y".to_owned(), Output::Bool(false))
+        ])));
+
+        // Non intersectable but different variables
+        assert!(create_ntuple_output(vec![
+            ("x".to_owned(), Output::Interval(int("[0, 100]"))),
+            ("y".to_owned(), Output::Bool(true))
+        ])
+        .intersects_with(&create_ntuple_output(vec![
+            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("z".to_owned(), Output::Bool(false))
+        ])));
+
+        // Empty
+        assert!(
+            create_ntuple_output(vec![]).intersects_with(&create_ntuple_output(vec![
+                ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+                ("z".to_owned(), Output::Bool(false))
+            ]))
+        );
+        assert!(create_ntuple_output(vec![
+            ("x".to_owned(), Output::Interval(int("[0, 100]"))),
+            ("y".to_owned(), Output::Bool(true))
+        ])
+        .intersects_with(&create_ntuple_output(vec![])));
+        assert!(create_ntuple_output(vec![]).intersects_with(&create_ntuple_output(vec![])));
     }
 }

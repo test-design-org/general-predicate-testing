@@ -1,4 +1,4 @@
-use gpt_common::{dto::NTuple, generate_tests_for_gpt_input};
+use gpt_common::{dto::NTupleOutput, generate_tests_for_gpt_input};
 use yew::prelude::*;
 
 use crate::{
@@ -31,7 +31,7 @@ pub fn manual_tester() -> Html {
     "#
         .to_owned()
     });
-    let generated_state = use_state(|| Some(Ok(Vec::<NTuple>::new())));
+    let generated_state = use_state(|| Some(Ok(Vec::<NTupleOutput>::new())));
 
     let toggle_button_onclick = {
         let is_loading = is_loading.clone();

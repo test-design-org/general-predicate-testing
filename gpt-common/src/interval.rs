@@ -211,14 +211,14 @@ impl Intersectable for MultiInterval {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::Interval;
     use crate::{
         interval::{Intersectable, MultiInterval},
         parser::interval,
     };
 
-    fn int(input: &str) -> Interval {
+    pub fn int(input: &str) -> Interval {
         let (_, x) = interval(input).unwrap();
         *x.intervals.first().unwrap()
     }
