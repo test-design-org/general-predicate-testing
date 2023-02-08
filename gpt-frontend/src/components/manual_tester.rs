@@ -1,6 +1,8 @@
 use gpt_common::{
-    dto::NTupleOutput, generate_tests_for_gpt_input, graph_reduction::create_graph,
+    dto::NTupleOutput,
+    generate_tests_for_gpt_input,
     graph_reduction::create_graph_url,
+    graph_reduction::{create_graph, MONKE::run_MONKE},
 };
 use yew::prelude::*;
 
@@ -47,9 +49,15 @@ pub fn manual_tester() -> Html {
             match generate_tests_for_gpt_input(&input) {
                 Ok(test_cases) => {
                     let graph = create_graph(&test_cases);
-                    log::debug!("{}", create_graph_url(&graph));
+                    let reduced_graph = run_MONKE(graph);
+                    log::debug!("{}", create_graph_url(&reduced_graph));
 
-                    generated_state.set(Some(Ok(test_cases)));
+                    let reduced_test_cases = reduced_graph
+                        .node_weights()
+                        .cloned()
+                        .collect::<Vec<NTupleOutput>>();
+
+                    generated_state.set(Some(Ok(reduced_test_cases)));
                 }
                 Err(err) => {
                     log::error!("Error: {}", err);

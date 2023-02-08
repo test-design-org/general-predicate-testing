@@ -1,4 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
 use crate::interval::{Intersectable, Interval};
 
@@ -64,12 +68,19 @@ impl Intersectable for Output {
         }
     }
 
-    fn intersect(&self, _other: &Self) -> Option<Self> {
-        todo!()
+    fn intersect(&self, other: &Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Bool(this), Self::Bool(that)) => Some(Self::Bool(*this)),
+            (Self::Interval(this), Self::Interval(that)) => this
+                .intersect(that)
+                .map(|interval| Self::Interval(interval)),
+            (Self::MissingVariable, Self::MissingVariable) => Some(Self::MissingVariable),
+            (_, _) => None,
+        }
     }
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone)]
 pub struct NTupleOutput {
     pub outputs: HashMap<String, Output>,
 }
@@ -112,6 +123,23 @@ impl Intersectable for NTupleOutput {
         Some(Self {
             outputs: intersected_outputs,
         })
+    }
+}
+
+impl Display for NTupleOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{")?;
+        for (var_name, interval) in self.outputs.iter() {
+            write!(f, " {var_name}: {:?}", interval)?;
+        }
+        write!(f, " }}")?;
+        Ok(())
+    }
+}
+
+impl Debug for NTupleOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }
 

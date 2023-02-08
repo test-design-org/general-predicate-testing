@@ -1,3 +1,6 @@
+pub mod MONKE;
+mod common;
+
 use std::fmt::Display;
 
 use petgraph::{
@@ -21,6 +24,16 @@ pub fn create_graph(ntuples: &[NTupleOutput]) -> NTupleGraph {
 
     for a in graph.node_indices() {
         for b in graph.node_indices() {
+            if a == b
+                || graph
+                    .edges_connecting(a, b)
+                    .chain(graph.edges_connecting(b, a))
+                    .count()
+                    > 0
+            {
+                continue;
+            }
+
             let x = graph.node_weight(a).unwrap();
             let y = graph.node_weight(b).unwrap();
 
@@ -35,7 +48,8 @@ pub fn create_graph(ntuples: &[NTupleOutput]) -> NTupleGraph {
 
 pub fn create_graph_url(graph: &NTupleGraph) -> String {
     let dot_string = format!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
-    let encoded_dot_string = encode(&dot_string).into_owned();
+    let encoded_dot_string = encode(&dot_string).replace(' ', "%20");
 
-    "https://dreampuf.github.io/GraphvizOnline/#".to_owned() + &encoded_dot_string
+    // "https://dreampuf.github.io/GraphvizOnline/#".to_owned() + &encoded_dot_string
+    dot_string
 }
