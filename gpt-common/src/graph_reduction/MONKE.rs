@@ -1,8 +1,6 @@
-use petgraph::{adj::EdgeIndex, graph::EdgeReference, visit::IntoEdges};
-
 use super::{common::join_nodes_on_edge, NTupleGraph};
 
-pub fn run_MONKE(graph: NTupleGraph) -> NTupleGraph {
+pub fn run_MONKE(graph: &NTupleGraph) -> NTupleGraph {
     let mut graph = graph.clone();
 
     while graph.edge_count() > 0 {

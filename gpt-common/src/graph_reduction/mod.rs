@@ -1,14 +1,11 @@
 pub mod MONKE;
 mod common;
+pub mod least_losing_components;
+pub mod least_losing_nodes_reachable;
 
-use std::fmt::Display;
+use std::fmt::Debug;
 
-use petgraph::{
-    dot::{Config, Dot},
-    prelude::UnGraph,
-    visit::{IntoEdgeReferences, IntoNodeReferences},
-    Graph,
-};
+use petgraph::{dot::Dot, prelude::UnGraph};
 use urlencoding::encode;
 
 use crate::{dto::NTupleOutput, interval::Intersectable};
@@ -46,8 +43,11 @@ pub fn create_graph(ntuples: &[NTupleOutput]) -> NTupleGraph {
     graph
 }
 
-pub fn create_graph_url(graph: &NTupleGraph) -> String {
-    let dot_string = format!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
+pub fn create_graph_url<E>(graph: &UnGraph<NTupleOutput, E>) -> String
+where
+    E: Debug,
+{
+    let dot_string = format!("{:?}", Dot::with_config(&graph, &[]));
     let encoded_dot_string = encode(&dot_string).replace(' ', "%20");
 
     // "https://dreampuf.github.io/GraphvizOnline/#".to_owned() + &encoded_dot_string

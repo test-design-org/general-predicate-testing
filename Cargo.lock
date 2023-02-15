@@ -312,6 +312,7 @@ dependencies = [
 name = "gpt-common"
 version = "0.1.0"
 dependencies = [
+ "log",
  "nom",
  "petgraph",
  "thiserror",

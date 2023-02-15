@@ -1,8 +1,11 @@
 use gpt_common::{
     dto::NTupleOutput,
     generate_tests_for_gpt_input,
-    graph_reduction::create_graph_url,
-    graph_reduction::{create_graph, MONKE::run_MONKE},
+    graph_reduction::{
+        create_graph, least_losing_nodes_reachable::run_least_losing_edges_reachable,
+        MONKE::run_MONKE,
+    },
+    graph_reduction::{create_graph_url, least_losing_components::run_least_losing_components},
 };
 use yew::prelude::*;
 
@@ -49,7 +52,22 @@ pub fn manual_tester() -> Html {
             match generate_tests_for_gpt_input(&input) {
                 Ok(test_cases) => {
                     let graph = create_graph(&test_cases);
-                    let reduced_graph = run_MONKE(graph);
+
+                    log::info!("Original count: {}", graph.node_count());
+                    let reduced_graph = run_MONKE(&graph);
+                    log::info!("MONKE count: {}", reduced_graph.node_count());
+                    let reduced_graph = run_least_losing_components(&graph);
+                    log::info!(
+                        "Least Losing Components count: {}",
+                        reduced_graph.node_count()
+                    );
+                    let reduced_graph = run_least_losing_edges_reachable(&graph);
+                    log::info!(
+                        "Least Losing Edges Reachable count: {}",
+                        reduced_graph.node_count()
+                    );
+
+                    log::debug!("{}", create_graph_url(&graph));
                     log::debug!("{}", create_graph_url(&reduced_graph));
 
                     let reduced_test_cases = reduced_graph

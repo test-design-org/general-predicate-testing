@@ -1,4 +1,4 @@
-use petgraph::{graph::Edge, prelude::NodeIndex, prelude::UnGraph};
+use petgraph::{prelude::NodeIndex, prelude::UnGraph};
 
 use crate::{dto::NTupleOutput, interval::Intersectable};
 
@@ -6,8 +6,9 @@ pub fn replace_nodes<T>(
     graph: &mut UnGraph<NTupleOutput, T>,
     a: NodeIndex,
     b: NodeIndex,
-    newNTuple: NTupleOutput,
-) where
+    new_ntuple: NTupleOutput,
+) -> NodeIndex
+where
     T: Default + Clone,
 {
     let adjacens_nodes = graph
@@ -16,23 +17,30 @@ pub fn replace_nodes<T>(
         .filter(|node_index| *node_index != a && *node_index != b)
         .collect::<Vec<NodeIndex>>();
 
-    let ntuple_index = graph.add_node(newNTuple.clone());
+    let ntuple_index = graph.add_node(new_ntuple.clone());
 
     for node_index in adjacens_nodes {
         let node = graph.node_weight(node_index).unwrap();
-        if newNTuple.intersects_with(node) {
+        if new_ntuple.intersects_with(node) {
             graph.add_edge(ntuple_index, node_index, T::default());
         }
     }
     graph.remove_node(a);
     graph.remove_node(b);
+
+    let ntuple_index = graph
+        .node_indices()
+        .find(|node_index| graph[*node_index] == new_ntuple)
+        .expect("The recently added new ntuple should be in the graph");
+
+    ntuple_index
 }
 
 pub fn join_nodes_on_edge<T>(
     graph: &mut UnGraph<NTupleOutput, T>,
     a: NodeIndex,
     b: NodeIndex,
-) -> NTupleOutput
+) -> NodeIndex
 where
     T: Default + Clone,
 {
@@ -42,60 +50,29 @@ where
         .intersect(graph.node_weight(b).unwrap())
         .unwrap();
 
-    replace_nodes(graph, a, b, joined_ntuple.clone());
+    let joined_ntuple_index = replace_nodes(graph, a, b, joined_ntuple.clone());
 
-    joined_ntuple
+    joined_ntuple_index
 }
 
-// export function minimumBy<T>(list: T[], lens: (_: T) => number): T {
-//   return list.reduce((minimum, x) => (lens(x) < lens(minimum) ? x : minimum));
-// }
+pub fn clone_with_different_edge_type<N, EOld, ENew>(graph: &UnGraph<N, EOld>) -> UnGraph<N, ENew>
+where
+    N: Clone,
+    ENew: Default,
+{
+    let mut new_graph = UnGraph::<N, ENew>::default();
 
-// export function numberOfConnectedComponentsComponents(graph: Graph): number {
-//   const visited = new Map<string, boolean>();
+    for node in graph.node_weights() {
+        new_graph.add_node(node.clone());
+    }
 
-//   const DFSUtil = (node: NTuple) => {
-//     visited.set(node.id, true);
+    for edge_index in graph.edge_indices() {
+        let (a, b) = graph.edge_endpoints(edge_index).expect(
+            "We're iterating through the edge indicies, this index should exist in the graph",
+        );
 
-//     const neighbours = graph.getNeighbours(node);
-//     for (const neighbour of neighbours) {
-//       if (!visited.get(neighbour.id)) {
-//         DFSUtil(neighbour);
-//       }
-//     }
-//   };
+        new_graph.add_edge(a, b, ENew::default());
+    }
 
-//   let componentCount = 0;
-//   for (const node of graph.nodes) {
-//     if (!visited.get(node.id)) {
-//       DFSUtil(node);
-//       ++componentCount;
-//     }
-//   }
-
-//   return componentCount;
-// }
-
-// export function dfs(
-//   graph: Graph,
-//   startingNode: NTuple,
-//   events: {
-//     discoverNode?: (node: NTuple) => void;
-//   },
-// ): void {
-//   const visited = new Map<string, boolean>();
-
-//   const DFSUtil = (node: NTuple) => {
-//     visited.set(node.id, true);
-//     events.discoverNode?.(node);
-
-//     const neighbours = graph.getNeighbours(node);
-//     for (const neighbour of neighbours) {
-//       if (!visited.get(neighbour.id)) {
-//         DFSUtil(neighbour);
-//       }
-//     }
-//   };
-
-//   DFSUtil(startingNode);
-// }
+    new_graph
+}
