@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 nom = "7"
 thiserror = "1"
+petgraph = "0.6.2"
+urlencoding = "2.1.2"
+log = "0.4.6"
+
