@@ -14,6 +14,15 @@ pub enum Boundary {
     Closed,
 }
 
+impl Boundary {
+    pub fn inverse(&self) -> Self {
+        match self {
+            Self::Open => Self::Closed,
+            Self::Closed => Self::Open,
+        }
+    }
+}
+
 /// Represents one interval with boundaries, a low value and a high value
 #[derive(PartialEq, Clone, Copy)]
 pub struct Interval {
@@ -118,6 +127,9 @@ pub enum IntervalError {
     LoIsGreaterThanHi,
 }
 
+// TODO: implement a simplifier function, which
+//          - removes empty intervals, like (0,0)
+//          - merges bordering intervals, like [10, 20] [20, 30] becomes [10, 30]
 impl MultiInterval {
     pub fn new(
         lo_boundary: Boundary,
@@ -170,6 +182,60 @@ impl MultiInterval {
     pub fn DONOTUSE_get_interval(&self) -> Interval {
         self.intervals[0]
     }
+
+    pub fn inverse(&self) -> Self {
+        if self.intervals.is_empty() {
+            return Self {
+                intervals: vec![Interval {
+                    lo_boundary: Boundary::Open,
+                    lo: f32::NEG_INFINITY,
+                    hi: f32::INFINITY,
+                    hi_boundary: Boundary::Open,
+                }],
+            };
+        }
+
+        let mut new_intervals = Vec::new();
+
+        if self.lowest_lo() != f32::NEG_INFINITY {
+            new_intervals.push(Interval {
+                lo_boundary: Boundary::Open,
+                lo: f32::NEG_INFINITY,
+                hi: self.lowest_lo(),
+                hi_boundary: self.lowest_boundary().inverse(),
+            })
+        }
+
+        new_intervals.append(
+            &mut self
+                .intervals
+                .windows(2)
+                .map(|x| {
+                    let (a, b) = (x[0], x[1]);
+
+                    Interval {
+                        lo_boundary: a.hi_boundary.inverse(),
+                        lo: a.hi,
+                        hi: b.lo,
+                        hi_boundary: b.lo_boundary.inverse(),
+                    }
+                })
+                .collect(),
+        );
+
+        if self.highest_hi() != f32::INFINITY {
+            new_intervals.push(Interval {
+                lo_boundary: self.highest_boundary().inverse(),
+                lo: self.highest_hi(),
+                hi: f32::INFINITY,
+                hi_boundary: Boundary::Open,
+            })
+        }
+
+        Self {
+            intervals: new_intervals,
+        }
+    }
 }
 
 impl Intersectable for MultiInterval {
@@ -212,6 +278,8 @@ impl Intersectable for MultiInterval {
 
 #[cfg(test)]
 pub(crate) mod test {
+    use nom::{combinator::complete, multi::many0};
+
     use super::Interval;
     use crate::{
         interval::{Intersectable, MultiInterval},
@@ -221,6 +289,16 @@ pub(crate) mod test {
     pub fn int(input: &str) -> Interval {
         let (_, x) = interval(input).unwrap();
         *x.intervals.first().unwrap()
+    }
+
+    pub fn multiint(input: &str) -> MultiInterval {
+        let (_, x) = many0(complete(interval))(input.trim()).unwrap();
+        MultiInterval {
+            intervals: x
+                .into_iter()
+                .map(|y| *y.intervals.first().unwrap())
+                .collect(),
+        }
     }
 
     #[test]
@@ -239,13 +317,13 @@ pub(crate) mod test {
             assert_eq!(
                 interval.contains_point(point),
                 expected,
-                "OneInterval.contains_point failed: {interval:?}.contains_point({point:?}) should be {expected:?}",
+                "Interval.contains_point failed: {interval:?}.contains_point({point:?}) should be {expected:?}",
             );
         }
     }
 
     #[test]
-    fn test_OneInterval_intersects_with() {
+    fn test_Interval_intersects_with() {
         let test_cases = vec![
             // self.hi equals other.lo
             (int("[0, 10]"), int("[10, 20]"), true),
@@ -294,13 +372,13 @@ pub(crate) mod test {
             assert_eq!(
                 this.intersects_with(&that),
                 expected,
-                "OneInterval.intersects_with failed: {this:?}.intersects_with({that:?}) should be {expected:?}",
+                "Interval.intersects_with failed: {this:?}.intersects_with({that:?}) should be {expected:?}",
             );
         }
     }
 
     #[test]
-    fn test_OneInterval_intersect() {
+    fn test_Interval_intersect() {
         let test_cases = vec![
             // self.hi equals other.lo
             (int("[0, 10]"), int("[10, 20]"), Some(int("[10, 10]"))),
@@ -349,13 +427,13 @@ pub(crate) mod test {
             assert_eq!(
                 this.intersect(&that),
                 expected,
-                "OneInterval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
+                "Interval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
             );
         }
     }
 
     #[test]
-    fn test_Interval_intersect() {
+    fn test_MultiInterval_intersect() {
         let test_cases = vec![
             // zero elements
             (vec![], vec![], None),
@@ -407,8 +485,90 @@ pub(crate) mod test {
             assert_eq!(
                 this.intersect(&that),
                 expected,
-                "Interval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
+                "MultiInterval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
             );
         }
+    }
+
+    #[test]
+    fn test_MultiInterval_inverse() {
+        let test_cases = vec![
+            // zero elements
+            ("", "(-Inf, Inf)"),
+            ("(-Inf, Inf)", ""),
+            // one element - -Inf on left
+            ("(-Inf, 10)", "[10, Inf)"),
+            ("(-Inf, 10]", "(10, Inf)"),
+            // one element - no Infs on either side
+            ("(10, 20)", "(-Inf, 10] [20, Inf)"),
+            ("(10, 20]", "(-Inf, 10] (20, Inf)"),
+            ("[10, 20)", "(-Inf, 10) [20, Inf)"),
+            ("[10, 20]", "(-Inf, 10) (20, Inf)"),
+            // one element - Inf on right
+            ("(10, Inf)", "(-Inf, 10]"),
+            ("[10, Inf)", "(-Inf, 10)"),
+            // multiple elements - has Inf on either side
+            ("(-Inf, 10) (20, Inf)", "[10, 20]"),
+            (
+                "(-Inf, 10) (20, 30) (40, Inf)",
+                "[10, 20] [30, 40]",
+            ),
+            // multiple elements - Inf on one side
+            (
+                "(-Inf, 10) [20, 30)",
+                "[10, 20) [30, Inf)",
+            ),
+            (
+                "(-Inf, 10)        (20, 30)        (40, 50)",
+                "          [10, 20]        [30, 40]        [50, Inf)",
+            ),
+            ("(0, 10) [20, Inf)", "(-Inf, 0] [10, 20)"),
+            (
+                "         [0, 10)        (20, 30)        (40, Inf)",
+                "(-Inf, 0)       [10, 20]        [30, 40]",
+            ),
+            // TODO: same endpoint, like (0,0) [0,0] (0,0] [0,0)
+            // complex examples
+            (
+                "           [-42, 3)      (3, 67)         (100, 101)          [205, 607]          (700, Inf)",
+                "(-Inf, -42)        [3, 3]       [67, 100]          [101, 205)          (607, 700]",
+            ),
+        ];
+
+        for (interval, expected) in test_cases {
+            let interval = multiint(interval);
+            let expected = multiint(expected);
+
+            assert_eq!(
+                interval.inverse(),
+                expected,
+                "MultiInterval.invert failed: {interval:?}.inverse() should be {expected:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_MultiInterval_axioms() {
+        let input1 = multiint("[-42, 3) (3, 67) (100, 101) [205, 607] (700, Inf)");
+
+        assert_eq!(
+            input1.inverse().inverse(),
+            input1,
+            "The inverse of an inverse should be the original",
+        );
+        assert_eq!(
+            input1.intersect(&multiint("(-Inf, Inf)")),
+            Some(input1.clone()),
+            "Intersecting something with (-Inf, Inf) should be the original"
+        );
+        assert!(
+            !input1.intersects_with(&input1.inverse()),
+            "An interval can't be intersected with its inverse"
+        );
+        assert_eq!(
+            input1.intersect(&input1.inverse()),
+            None,
+            "An interval can't be intersected with its inverse"
+        );
     }
 }
