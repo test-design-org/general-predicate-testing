@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{cmp::Ordering, fmt};
 
 pub trait Intersectable {
     fn intersects_with(&self, other: &Self) -> bool;
@@ -8,6 +8,10 @@ pub trait Intersectable {
         Self: Sized;
 }
 
+pub trait Unionable<TOther, TResult> {
+    fn union(&self, other: &TOther) -> TResult;
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Boundary {
     Open,
@@ -15,7 +19,7 @@ pub enum Boundary {
 }
 
 impl Boundary {
-    pub fn inverse(&self) -> Self {
+    pub const fn inverse(&self) -> Self {
         match self {
             Self::Open => Self::Closed,
             Self::Closed => Self::Open,
@@ -39,6 +43,8 @@ impl Interval {
             || (self.hi == point && self.hi_boundary == Boundary::Closed)
     }
 
+    /// Creates an interval. If lo or hi would be infinity, that side will be open, no matter what boundary was passed to it,
+    /// because that is the semantically correct way to handle it.
     pub fn new(
         lo_boundary: Boundary,
         lo: f32,
@@ -49,10 +55,18 @@ impl Interval {
             Err(IntervalError::LoIsGreaterThanHi)
         } else {
             Ok(Self {
-                lo_boundary,
+                lo_boundary: if lo == f32::NEG_INFINITY {
+                    Boundary::Open
+                } else {
+                    lo_boundary
+                },
                 lo,
                 hi,
-                hi_boundary,
+                hi_boundary: if hi == f32::INFINITY {
+                    Boundary::Open
+                } else {
+                    hi_boundary
+                },
             })
         }
     }
@@ -68,6 +82,36 @@ impl Interval {
             lo: point,
             hi: point,
             hi_boundary: Boundary::Closed,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.lo == self.hi
+            && self.lo_boundary == Boundary::Open
+            && self.hi_boundary == Boundary::Open
+    }
+
+    fn lo_cmp(&self, other: &Self) -> Ordering {
+        match self.lo.partial_cmp(&other.lo).unwrap() {
+            std::cmp::Ordering::Equal => match (self.lo_boundary, other.lo_boundary) {
+                (Boundary::Open, Boundary::Closed) => std::cmp::Ordering::Greater,
+                (Boundary::Closed, Boundary::Open) => std::cmp::Ordering::Less,
+                (Boundary::Open, Boundary::Open) => std::cmp::Ordering::Equal,
+                (Boundary::Closed, Boundary::Closed) => std::cmp::Ordering::Equal,
+            },
+            x => x,
+        }
+    }
+
+    fn hi_cmp(&self, other: &Self) -> Ordering {
+        match self.hi.partial_cmp(&other.hi).unwrap() {
+            std::cmp::Ordering::Equal => match (self.hi_boundary, other.hi_boundary) {
+                (Boundary::Open, Boundary::Closed) => std::cmp::Ordering::Less,
+                (Boundary::Closed, Boundary::Open) => std::cmp::Ordering::Greater,
+                (Boundary::Open, Boundary::Open) => std::cmp::Ordering::Equal,
+                (Boundary::Closed, Boundary::Closed) => std::cmp::Ordering::Equal,
+            },
+            x => x,
         }
     }
 }
@@ -118,7 +162,7 @@ impl fmt::Debug for Interval {
 #[derive(Debug, PartialEq, Clone)]
 pub struct MultiInterval {
     /// `intervals` is always sorted in ascending order and there are no overlapping intervals
-    intervals: Vec<Interval>,
+    pub(crate) intervals: Vec<Interval>,
 }
 
 // TODO: There could be a more pragmatic rust solution
@@ -142,12 +186,37 @@ impl MultiInterval {
         })
     }
 
+    pub fn from_interval(interval: Interval) -> Self {
+        Self {
+            intervals: vec![interval],
+        }
+    }
+
+    pub fn from_intervals(intervals: Vec<Interval>) -> Self {
+        let mut multi_interval = Self { intervals };
+
+        multi_interval.clean();
+
+        multi_interval
+    }
+
+    pub const fn new_empty() -> Self {
+        Self {
+            intervals: Vec::new(),
+        }
+    }
+
     pub fn new_closed(lo: f32, hi: f32) -> Result<Self, IntervalError> {
         Self::new(Boundary::Closed, lo, hi, Boundary::Closed)
     }
 
+    pub fn new_closed_point(num: f32) -> Self {
+        Self::new(Boundary::Closed, num, num, Boundary::Closed)
+            .expect("Closed point creation should not cause any errors")
+    }
+
     #[must_use]
-    pub fn highest_hi(&self) -> f32 {
+    fn highest_hi(&self) -> f32 {
         self.intervals
             .last()
             .expect("Interval should always contain an interval")
@@ -155,7 +224,7 @@ impl MultiInterval {
     }
 
     #[must_use]
-    pub fn lowest_lo(&self) -> f32 {
+    fn lowest_lo(&self) -> f32 {
         self.intervals
             .first()
             .expect("Interval should always contain an interval")
@@ -163,7 +232,7 @@ impl MultiInterval {
     }
 
     #[must_use]
-    pub fn highest_boundary(&self) -> Boundary {
+    fn highest_boundary(&self) -> Boundary {
         self.intervals
             .last()
             .expect("Interval should always contain an interval")
@@ -171,16 +240,15 @@ impl MultiInterval {
     }
 
     #[must_use]
-    pub fn lowest_boundary(&self) -> Boundary {
+    fn lowest_boundary(&self) -> Boundary {
         self.intervals
             .first()
             .expect("Interval should always contain an interval")
             .lo_boundary
     }
 
-    #[must_use]
-    pub fn DONOTUSE_get_interval(&self) -> Interval {
-        self.intervals[0]
+    pub fn is_empty(&self) -> bool {
+        self.intervals.is_empty()
     }
 
     pub fn inverse(&self) -> Self {
@@ -236,6 +304,42 @@ impl MultiInterval {
             intervals: new_intervals,
         }
     }
+
+    fn clean(&mut self) {
+        // Removing empty intervals
+        self.intervals.retain(|x| !x.is_empty());
+
+        // Sort the intervals
+        self.intervals.sort_by(|a, b| a.lo_cmp(&b));
+
+        // Merging overlapping intervals
+        if self.intervals.len() >= 2 {
+            // Start at the back and go backwards, because then we can remove indicies easily from the end
+            for i in (0..=(self.intervals.len() - 2)).rev() {
+                let (left, right) = (self.intervals[i], self.intervals[i + 1]);
+
+                // left.lo <= right.lo beacuse of the sort
+                if left.intersects_with(&right) {
+                    if left.hi_cmp(&right) == Ordering::Greater {
+                        self.intervals[i] = Interval {
+                            lo_boundary: left.lo_boundary,
+                            lo: left.lo,
+                            hi: left.hi,
+                            hi_boundary: left.hi_boundary,
+                        };
+                    } else {
+                        self.intervals[i] = Interval {
+                            lo_boundary: left.lo_boundary,
+                            lo: left.lo,
+                            hi: right.hi,
+                            hi_boundary: right.hi_boundary,
+                        };
+                    }
+                    self.intervals.remove(i + 1);
+                }
+            }
+        }
+    }
 }
 
 impl Intersectable for MultiInterval {
@@ -276,8 +380,33 @@ impl Intersectable for MultiInterval {
     }
 }
 
+impl Unionable<MultiInterval, MultiInterval> for MultiInterval {
+    fn union(&self, other: &Self) -> Self {
+        let mut intervals = self.intervals.clone();
+        intervals.append(&mut other.intervals.clone());
+
+        let mut multi_interval = Self { intervals };
+        multi_interval.clean();
+
+        multi_interval
+    }
+}
+
+impl Unionable<Interval, MultiInterval> for Interval {
+    fn union(&self, other: &Self) -> MultiInterval {
+        let mut multi_interval = MultiInterval {
+            intervals: vec![self.clone(), other.clone()],
+        };
+        multi_interval.clean();
+
+        multi_interval
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test {
+    use std::cmp::Ordering;
+
     use nom::{combinator::complete, multi::many0};
 
     use super::Interval;
@@ -428,6 +557,95 @@ pub(crate) mod test {
                 this.intersect(&that),
                 expected,
                 "Interval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_Interval_is_empty() {
+        let test_cases = vec![
+            ("(0,0)", true),
+            ("(0,0]", false),
+            ("[0,0)", false),
+            ("[0,0]", false),
+            ("(0,1)", false),
+        ];
+
+        for (input, expected) in test_cases {
+            let interval = int(input);
+
+            assert_eq!(
+                interval.is_empty(),
+                expected,
+                "Interval.isEmpty failed: {interval:?}.is_empty() should be {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_Interval_lo_cmp() {
+        use Ordering::{Equal, Greater, Less};
+        let test_cases = vec![
+            // Same endpoint
+            ("(0,0)", "(0,0)", Equal),
+            ("[0,0)", "[0,0)", Equal),
+            ("(0,10)", "(0,20]", Equal),
+            ("[0,0)", "(0,0)", Less),
+            ("(0,0)", "[0,0)", Greater),
+            // No matter the boundary, it is Less
+            ("(-20,0)", "(0,0)", Less),
+            ("(-20,0)", "[0,0)", Less),
+            ("[-20,0)", "(0,0)", Less),
+            ("[-20,0)", "[0,0)", Less),
+            // No matter the boundary, it is Greater
+            ("(20,30)", "(0,0)", Greater),
+            ("(20,30)", "[0,0)", Greater),
+            ("[20,30)", "(0,0)", Greater),
+            ("[20,30)", "[0,0)", Greater),
+        ];
+
+        for (input_left, input_right, expected) in test_cases {
+            let left = int(input_left);
+            let right = int(input_right);
+
+            assert_eq!(
+                left.lo_cmp(&right),
+                expected,
+                "Interval.lo_cmp failed: {left:?}.lo_cmp({right:?}) should be {expected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_Interval_hi_cmp() {
+        use Ordering::{Equal, Greater, Less};
+        let test_cases = vec![
+            // Same endpoint
+            ("(0,0)", "(0,0)", Equal),
+            ("(0,0]", "(0,0]", Equal),
+            ("(-10,0)", "(-20,0)", Equal),
+            ("(0,0)", "(0,0]", Less),
+            ("(0,0]", "(0,0)", Greater),
+            // No matter the boundary, it is Less
+            ("(-30,-20)", "(0,0)", Less),
+            ("(-30,-20)", "(0,0]", Less),
+            ("(-30,-20]", "(0,0)", Less),
+            ("(-30,-20]", "(0,0]", Less),
+            // No matter the boundary, it is Greater
+            ("(0,20)", "(0,0)", Greater),
+            ("(0,20]", "(0,0)", Greater),
+            ("(0,20)", "(0,0]", Greater),
+            ("(0,20]", "(0,0]", Greater),
+        ];
+
+        for (input_left, input_right, expected) in test_cases {
+            let left = int(input_left);
+            let right = int(input_right);
+
+            assert_eq!(
+                left.hi_cmp(&right),
+                expected,
+                "Interval.hi_cmp failed: {left:?}.hi_cmp({right:?}) should be {expected:?}"
             );
         }
     }

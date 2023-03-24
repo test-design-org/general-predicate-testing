@@ -20,7 +20,7 @@ fn convert_interval_dto(variable: &ir::Variable, condition: &ir::IntervalConditi
 
     IntervalDTO {
         expression: condition.expression,
-        interval: condition.interval.DONOTUSE_get_interval(),
+        interval: condition.interval.clone(),
         precision,
         is_constant: false,
     }

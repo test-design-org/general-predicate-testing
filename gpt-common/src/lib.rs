@@ -5,6 +5,7 @@ use parser::parse_gpt_to_features;
 use prelude::{GPTError, Result};
 use test_case_generator::generate_test_cases_for_multiple_features;
 
+pub mod bva;
 pub mod dto;
 pub mod graph_reduction;
 mod interval;

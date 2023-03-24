@@ -4,7 +4,7 @@ use std::{
     fmt::Display,
 };
 
-use crate::interval::{Intersectable, Interval};
+use crate::interval::{Intersectable, Interval, MultiInterval};
 
 #[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum BoolExpression {
@@ -33,15 +33,15 @@ pub enum Expression {
     //   MissingVariable,
 }
 
-#[derive(PartialEq, Clone, Debug, Copy)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct IntervalDTO {
     pub expression: Expression,
-    pub interval: Interval,
+    pub interval: MultiInterval,
     pub precision: f32,
     pub is_constant: bool,
 }
 
-#[derive(PartialEq, Clone, Debug, Copy)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Input {
     Bool(BoolDTO),
     Interval(IntervalDTO),
@@ -52,11 +52,11 @@ pub struct NTupleInput {
     pub inputs: HashMap<String, Input>,
 }
 
-#[derive(PartialEq, Clone, Debug, Copy)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Output {
     MissingVariable,
     Bool(bool),
-    Interval(Interval),
+    Interval(MultiInterval),
 }
 
 impl Intersectable for Output {
@@ -110,8 +110,8 @@ impl Intersectable for NTupleOutput {
             let var_name = (*var_name).clone();
             let intersection = match (self.outputs.get(&*var_name), other.outputs.get(&*var_name)) {
                 (None, None) => panic!("in NTuple intersection, variable name should be at least in one of the maps, because we use keys from the maps"),
-                (Some(x), None) => Some(*x),
-                (None, Some(y)) => Some(*y),
+                (Some(x), None) => Some(x.clone()),
+                (None, Some(y)) => Some(y.clone()),
                 (Some(x), Some(y)) => x.intersect(y),
             }?;
 
@@ -148,7 +148,7 @@ pub(crate) mod tests {
     use std::collections::HashMap;
 
     use super::{Input, NTupleInput, NTupleOutput, Output};
-    use crate::interval::{test::int, Intersectable};
+    use crate::interval::{test::multiint, Intersectable};
 
     pub fn create_ntuple_input(inputs: Vec<(String, Input)>) -> NTupleInput {
         NTupleInput {
@@ -166,43 +166,43 @@ pub(crate) mod tests {
     fn test_ntuple_intersects_with() {
         // Same
         assert!(create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
             ("y".to_owned(), Output::Bool(true))
         ])
         .intersects_with(&create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
             ("y".to_owned(), Output::Bool(true))
         ])));
 
         // Non intersectable same variables
         assert!(!create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
             ("y".to_owned(), Output::Bool(true))
         ])
         .intersects_with(&create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
             ("y".to_owned(), Output::Bool(false))
         ])));
 
         // Non intersectable but different variables
         assert!(create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(int("[0, 100]"))),
+            ("x".to_owned(), Output::Interval(multiint("[0, 100]"))),
             ("y".to_owned(), Output::Bool(true))
         ])
         .intersects_with(&create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
             ("z".to_owned(), Output::Bool(false))
         ])));
 
         // Empty
         assert!(
             create_ntuple_output(vec![]).intersects_with(&create_ntuple_output(vec![
-                ("x".to_owned(), Output::Interval(int("[10, 20]"))),
+                ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
                 ("z".to_owned(), Output::Bool(false))
             ]))
         );
         assert!(create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(int("[0, 100]"))),
+            ("x".to_owned(), Output::Interval(multiint("[0, 100]"))),
             ("y".to_owned(), Output::Bool(true))
         ])
         .intersects_with(&create_ntuple_output(vec![])));

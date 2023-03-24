@@ -13,7 +13,7 @@ fn sort_outputs_into_varible_columns<'a>(
 ) -> Vec<Option<Output>> {
     variable_order
         .iter()
-        .map(|var_name| ntuple.outputs.get(&*var_name.clone()).map(|x| *x))
+        .map(|var_name| ntuple.outputs.get(&*var_name.clone()).cloned())
         .collect()
 }
 

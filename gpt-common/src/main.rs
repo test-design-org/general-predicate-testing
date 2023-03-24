@@ -6,9 +6,14 @@
     clippy::cargo
 )]
 
+use crate::dto::NTupleOutput;
+use crate::graph_reduction::{create_graph, MONKE::run_MONKE};
+
 use crate::test_case_generator::generate_test_cases_for_multiple_features;
 
+mod bva;
 pub mod dto;
+mod graph_reduction;
 pub mod interval;
 pub mod parser;
 mod test_case_generator;
@@ -47,9 +52,20 @@ pub fn main() {
     ]
     "#;
 
-    let (_, features) = parser::parse_gpt_to_features(input2).unwrap();
+    let (_, features) = parser::parse_gpt_to_features(input1).unwrap();
     let test_cases = generate_test_cases_for_multiple_features(&features).unwrap();
 
     println!("{:#?}", test_cases);
     println!("Number of test cases: {}", test_cases.len());
+
+    let ntuple_graph = create_graph(&test_cases);
+    let monked_graph = run_MONKE(&ntuple_graph);
+    let monked_test_cases = monked_graph
+        .node_weights()
+        .cloned()
+        .collect::<Vec<NTupleOutput>>();
+
+    println!("After running MONKE:");
+    println!("{:#?}", monked_test_cases);
+    println!("Number of test cases: {}", monked_test_cases.len());
 }
