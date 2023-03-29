@@ -37,10 +37,15 @@ pub struct Interval {
 }
 
 impl Interval {
-    fn contains_point(&self, point: f32) -> bool {
-        (self.lo < point && point < self.hi)
-            || (self.lo == point && self.lo_boundary == Boundary::Closed)
-            || (self.hi == point && self.hi_boundary == Boundary::Closed)
+    pub fn contains_point(&self, point: f32) -> bool {
+        !self.is_empty()
+            && ((self.lo < point && point < self.hi)
+                || (self.lo == point && self.lo_boundary == Boundary::Closed)
+                || (self.hi == point && self.hi_boundary == Boundary::Closed))
+    }
+
+    pub fn contains(&self, other: &Interval) -> bool {
+        todo!()
     }
 
     /// Creates an interval. If lo or hi would be infinity, that side will be open, no matter what boundary was passed to it,
@@ -87,8 +92,7 @@ impl Interval {
 
     pub fn is_empty(&self) -> bool {
         self.lo == self.hi
-            && self.lo_boundary == Boundary::Open
-            && self.hi_boundary == Boundary::Open
+            && (self.lo_boundary == Boundary::Open || self.hi_boundary == Boundary::Open)
     }
 
     fn lo_cmp(&self, other: &Self) -> Ordering {
@@ -405,7 +409,7 @@ impl Unionable<Interval, MultiInterval> for Interval {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use std::cmp::Ordering;
+    use std::{cmp::Ordering, str::FromStr};
 
     use nom::{combinator::complete, multi::many0};
 
@@ -422,11 +426,27 @@ pub(crate) mod test {
 
     pub fn multiint(input: &str) -> MultiInterval {
         let (_, x) = many0(complete(interval))(input.trim()).unwrap();
-        MultiInterval {
-            intervals: x
-                .into_iter()
-                .map(|y| *y.intervals.first().unwrap())
-                .collect(),
+        let intervals = x
+            .into_iter()
+            .map(|y| *y.intervals.first().unwrap())
+            .collect();
+
+        MultiInterval::from_intervals(intervals)
+    }
+
+    impl FromStr for Interval {
+        type Err = ();
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            Ok(int(s))
+        }
+    }
+
+    impl FromStr for MultiInterval {
+        type Err = ();
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            Ok(multiint(s))
         }
     }
 
@@ -565,8 +585,8 @@ pub(crate) mod test {
     fn test_Interval_is_empty() {
         let test_cases = vec![
             ("(0,0)", true),
-            ("(0,0]", false),
-            ("[0,0)", false),
+            ("(0,0]", true),
+            ("[0,0)", true),
             ("[0,0]", false),
             ("(0,1)", false),
         ];
