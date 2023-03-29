@@ -147,65 +147,75 @@ impl Debug for NTupleOutput {
 pub(crate) mod tests {
     use std::collections::HashMap;
 
+    use pretty_assertions::{assert_eq, assert_ne};
+    use rstest::rstest;
+
     use super::{Input, NTupleInput, NTupleOutput, Output};
     use crate::interval::{test::multiint, Intersectable};
 
-    pub fn create_ntuple_input(inputs: Vec<(String, Input)>) -> NTupleInput {
+    pub fn create_ntuple_input(inputs: Vec<(&str, Input)>) -> NTupleInput {
         NTupleInput {
-            inputs: HashMap::from_iter(inputs.into_iter()),
+            inputs: HashMap::from_iter(
+                inputs
+                    .into_iter()
+                    .map(|(var_name, input)| (var_name.to_owned(), input)),
+            ),
         }
     }
 
-    pub fn create_ntuple_output(outputs: Vec<(String, Output)>) -> NTupleOutput {
+    pub fn create_ntuple_output(outputs: Vec<(&str, Output)>) -> NTupleOutput {
         NTupleOutput {
-            outputs: HashMap::from_iter(outputs.into_iter()),
+            outputs: HashMap::from_iter(
+                outputs
+                    .into_iter()
+                    .map(|(var_name, output)| (var_name.to_owned(), output)),
+            ),
         }
     }
 
-    #[test]
-    fn test_ntuple_intersects_with() {
-        // Same
-        assert!(create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
-            ("y".to_owned(), Output::Bool(true))
-        ])
-        .intersects_with(&create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
-            ("y".to_owned(), Output::Bool(true))
-        ])));
+    #[rstest]
+    #[case::same(vec![
+        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("y", Output::Bool(true))
+    ],vec![
+        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("y", Output::Bool(true))
+    ])]
+    #[case::non_intersectable_different_variables(vec![
+        ("x", Output::Interval(multiint("[0, 100]"))),
+        ("y", Output::Bool(true))
+    ],vec![
+        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("z", Output::Bool(false))
+    ])]
+    #[case::empty_left(vec![], vec![
+        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("z", Output::Bool(false))
+    ])]
+    #[case::empty_right(vec![
+        ("x", Output::Interval(multiint("[0, 100]"))),
+        ("y", Output::Bool(true))
+    ],vec![])]
+    #[case::both_empty(vec![], vec![])]
+    fn test_ntuple_intersects_with(
+        #[case] left: Vec<(&str, Output)>,
+        #[case] right: Vec<(&str, Output)>,
+    ) {
+        assert!(create_ntuple_output(left).intersects_with(&create_ntuple_output(right)));
+    }
 
-        // Non intersectable same variables
-        assert!(!create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
-            ("y".to_owned(), Output::Bool(true))
-        ])
-        .intersects_with(&create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
-            ("y".to_owned(), Output::Bool(false))
-        ])));
-
-        // Non intersectable but different variables
-        assert!(create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(multiint("[0, 100]"))),
-            ("y".to_owned(), Output::Bool(true))
-        ])
-        .intersects_with(&create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
-            ("z".to_owned(), Output::Bool(false))
-        ])));
-
-        // Empty
-        assert!(
-            create_ntuple_output(vec![]).intersects_with(&create_ntuple_output(vec![
-                ("x".to_owned(), Output::Interval(multiint("[10, 20]"))),
-                ("z".to_owned(), Output::Bool(false))
-            ]))
-        );
-        assert!(create_ntuple_output(vec![
-            ("x".to_owned(), Output::Interval(multiint("[0, 100]"))),
-            ("y".to_owned(), Output::Bool(true))
-        ])
-        .intersects_with(&create_ntuple_output(vec![])));
-        assert!(create_ntuple_output(vec![]).intersects_with(&create_ntuple_output(vec![])));
+    #[rstest]
+    #[case::non_intersectable_same_variables(vec![
+        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("y", Output::Bool(true))
+    ],vec![
+        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("y", Output::Bool(false))
+    ])]
+    fn test_ntuple_not_intersects_with(
+        #[case] left: Vec<(&str, Output)>,
+        #[case] right: Vec<(&str, Output)>,
+    ) {
+        assert!(!create_ntuple_output(left).intersects_with(&create_ntuple_output(right)));
     }
 }

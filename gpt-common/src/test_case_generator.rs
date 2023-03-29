@@ -182,7 +182,7 @@ mod tests {
         // true;   <50; *
         let inputs = create_ntuple_input(vec![
             (
-                "x".to_owned(),
+                "x",
                 Input::Bool(BoolDTO {
                     expression: BoolExpression::IsTrue,
                     bool_val: true,
@@ -190,7 +190,7 @@ mod tests {
                 }),
             ),
             (
-                "y".to_owned(),
+                "y",
                 Input::Interval(IntervalDTO {
                     expression: Expression::LessThan,
                     interval: MultiInterval::new(Open, f32::NEG_INFINITY, 50.0, Open).unwrap(),
@@ -203,51 +203,48 @@ mod tests {
         let expected = vec![
             // in
             create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(true)),
+                ("x", Output::Bool(true)),
                 (
-                    "y".to_owned(),
+                    "y",
                     Output::Interval(MultiInterval::new_closed(f32::NEG_INFINITY, 49.99).unwrap()),
                 ),
             ]),
             // on
             create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(true)),
+                ("x", Output::Bool(true)),
                 (
-                    "y".to_owned(),
+                    "y",
                     Output::Interval(MultiInterval::new_closed_point(49.99)),
                 ),
             ]),
             // inin
             create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(true)),
+                ("x", Output::Bool(true)),
                 (
-                    "y".to_owned(),
+                    "y",
                     Output::Interval(MultiInterval::new_closed(f32::NEG_INFINITY, 49.98).unwrap()),
                 ),
             ]),
             // Bool False
             create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(false)),
+                ("x", Output::Bool(false)),
                 (
-                    "y".to_owned(),
+                    "y",
                     Output::Interval(MultiInterval::new_closed(f32::NEG_INFINITY, 49.99).unwrap()),
                 ),
             ]),
             // Out
             create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(true)),
+                ("x", Output::Bool(true)),
                 (
-                    "y".to_owned(),
+                    "y",
                     Output::Interval(MultiInterval::new_closed(50.01, f32::INFINITY).unwrap()),
                 ),
             ]),
             // Off
             create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(true)),
-                (
-                    "y".to_owned(),
-                    Output::Interval(MultiInterval::new_closed_point(50.0)),
-                ),
+                ("x", Output::Bool(true)),
+                ("y", Output::Interval(MultiInterval::new_closed_point(50.0))),
             ]),
         ];
 

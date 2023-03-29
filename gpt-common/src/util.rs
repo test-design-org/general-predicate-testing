@@ -24,21 +24,19 @@ impl<T: PartialEq + Clone> UniquesVec<T> for Vec<T> {
 
 #[cfg(test)]
 mod test {
+    use pretty_assertions::{assert_eq, assert_ne};
+    use rstest::rstest;
+
     use super::UniquesVec;
 
-    #[test]
-    fn test_unique() {
-        let tests = vec![
-            (vec![], vec![]),
-            (vec![1, 2, 3, 4], vec![1, 2, 3, 4]),
-            (
-                vec![1, 2, 3, 1, 1, 1, 2, 1, 3, 3, 2, 1, 3, 2, 4],
-                vec![1, 2, 3, 4],
-            ),
-        ];
-
-        for (xs, expected) in tests {
-            assert_eq!(expected, xs.uniques());
-        }
+    #[rstest]
+    #[case::empty(vec![], vec![])]
+    #[case::unique(vec![1, 2, 3, 4], vec![1, 2, 3, 4])]
+    #[case::non_uniques(
+        vec![1, 2, 3, 1, 1, 1, 2, 1, 3, 3, 2, 1, 3, 2, 4],
+        vec![1, 2, 3, 4],
+    )]
+    fn test_unique(#[case] input: Vec<u8>, #[case] expected: Vec<u8>) {
+        assert_eq!(input.uniques(), expected);
     }
 }

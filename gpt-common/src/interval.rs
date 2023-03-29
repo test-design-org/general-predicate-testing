@@ -412,12 +412,12 @@ pub(crate) mod test {
     use std::{cmp::Ordering, str::FromStr};
 
     use nom::{combinator::complete, multi::many0};
+    use pretty_assertions::{assert_eq, assert_ne};
+    use rstest::rstest;
 
-    use super::Interval;
-    use crate::{
-        interval::{Intersectable, MultiInterval},
-        parser::interval,
-    };
+    use super::{Intersectable, Interval, MultiInterval};
+    use crate::parser::interval;
+    use Ordering::{Equal, Greater, Less};
 
     pub fn int(input: &str) -> Interval {
         let (_, x) = interval(input).unwrap();
@@ -450,343 +450,283 @@ pub(crate) mod test {
         }
     }
 
-    #[test]
-    fn test_contains_point() {
-        let test_cases = vec![
-            (int("[5, 10]"), 4.0, false),
-            (int("(5, 10]"), 5.0, false),
-            (int("[5, 10]"), 5.0, true),
-            (int("[5, 10]"), 7.0, true),
-            (int("[5, 10]"), 10.0, true),
-            (int("[5, 10)"), 10.0, false),
-            (int("[5, 10)"), 11.0, false),
-        ];
+    #[rstest]
+    #[case("[5, 10]", 4.0, false)]
+    #[case("(5, 10]", 5.0, false)]
+    #[case("[5, 10]", 5.0, true)]
+    #[case("[5, 10]", 7.0, true)]
+    #[case("[5, 10]", 10.0, true)]
+    #[case("[5, 10)", 10.0, false)]
+    #[case("[5, 10)", 11.0, false)]
+    fn test_contains_point(#[case] interval: Interval, #[case] point: f32, #[case] expected: bool) {
+        assert_eq!(
+            interval.contains_point(point),
+            expected,
+            "Interval.contains_point failed: {interval:?}.contains_point({point:?}) should be {expected:?}",
+        );
+    }
 
-        for (interval, point, expected) in test_cases {
-            assert_eq!(
-                interval.contains_point(point),
-                expected,
-                "Interval.contains_point failed: {interval:?}.contains_point({point:?}) should be {expected:?}",
-            );
-        }
+    #[rstest]
+    // self.hi equals other.lo
+    #[case("[0, 10]", "[10, 20]", true)]
+    #[case("[0, 10]", "(10, 20]", false)]
+    #[case("[0, 10)", "[10, 20]", false)]
+    #[case("[0, 10)", "(10, 20]", false)]
+    // self.lo equals other.hi
+    #[case("[10, 20]", "[0, 10]", true)]
+    #[case("(10, 20]", "[0, 10]", false)]
+    #[case("[10, 20]", "[0, 10)", false)]
+    #[case("(10, 20]", "[0, 10)", false)]
+    // self.hi inside other == other.lo inside self
+    #[case("[0, 10]", "[5, 20]", true)]
+    #[case("[0, 10]", "(5, 20]", true)]
+    #[case("[0, 10)", "[5, 20]", true)]
+    #[case("[0, 10)", "(5, 20]", true)]
+    // self.lo inside other == other.hi inside self
+    #[case("[5, 20]", "[0, 10]", true)]
+    #[case("(5, 20]", "[0, 10]", true)]
+    #[case("[5, 20]", "[0, 10)", true)]
+    #[case("(5, 20]", "[0, 10)", true)]
+    // self inside other
+    #[case("[10, 20]", "[0, 30]", true)]
+    #[case("[10, 20)", "[0, 30]", true)]
+    #[case("(10, 20]", "[0, 30]", true)]
+    #[case("(10, 20)", "[0, 30]", true)]
+    // other inside self
+    #[case("[0, 30]", "[10, 20]", true)]
+    #[case("[0, 30]", "[10, 20)", true)]
+    #[case("[0, 30]", "(10, 20]", true)]
+    #[case("[0, 30]", "(10, 20)", true)]
+    // self.lo > other.hi
+    #[case("[20, 30]", "[0, 10]", false)]
+    #[case("[20, 30]", "[0, 10)", false)]
+    #[case("(20, 30]", "[0, 10]", false)]
+    #[case("(20, 30]", "[0, 10)", false)]
+    // other.lo > self.hi
+    #[case("[0, 10]", "[20, 30]", false)]
+    #[case("[0, 10)", "[20, 30]", false)]
+    #[case("[0, 10]", "(20, 30]", false)]
+    #[case("[0, 10)", "(20, 30]", false)]
+    // TODO: Inf, -Inf
+    fn test_interval_intersects_with(
+        #[case] this: Interval,
+        #[case] that: Interval,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(
+            this.intersects_with(&that),
+            expected,
+            "Interval.intersects_with failed: {this:?}.intersects_with({that:?}) should be {expected:?}",
+        );
+    }
+
+    #[rstest]
+    // self.hi equals other.lo
+    #[case("[0, 10]", "[10, 20]", Some("[10, 10]"))]
+    #[case("[0, 10]", "(10, 20]", None)]
+    #[case("[0, 10)", "[10, 20]", None)]
+    #[case("[0, 10)", "(10, 20]", None)]
+    // self.lo equals other.hi
+    #[case("[10, 20]", "[0, 10]", Some("[10, 10]"))]
+    #[case("(10, 20]", "[0, 10]", None)]
+    #[case("[10, 20]", "[0, 10)", None)]
+    #[case("(10, 20]", "[0, 10)", None)]
+    // self.hi inside other == other.lo inside self
+    #[case("[0, 10]", "[5, 20]", Some("[5, 10]"))]
+    #[case("[0, 10]", "(5, 20]", Some("(5, 10]"))]
+    #[case("[0, 10)", "[5, 20]", Some("[5, 10)"))]
+    #[case("[0, 10)", "(5, 20]", Some("(5, 10)"))]
+    // self.lo inside other == other.hi inside self
+    #[case("[5, 20]", "[0, 10]", Some("[5, 10]"))]
+    #[case("(5, 20]", "[0, 10]", Some("(5, 10]"))]
+    #[case("[5, 20]", "[0, 10)", Some("[5, 10)"))]
+    #[case("(5, 20]", "[0, 10)", Some("(5, 10)"))]
+    // self inside other
+    #[case("[10, 20]", "[0, 30]", Some("[10, 20]"))]
+    #[case("[10, 20)", "[0, 30]", Some("[10, 20)"))]
+    #[case("(10, 20]", "[0, 30]", Some("(10, 20]"))]
+    #[case("(10, 20)", "[0, 30]", Some("(10, 20)"))]
+    // other inside self
+    #[case("[0, 30]", "[10, 20]", Some("[10, 20]"))]
+    #[case("[0, 30]", "[10, 20)", Some("[10, 20)"))]
+    #[case("[0, 30]", "(10, 20]", Some("(10, 20]"))]
+    #[case("[0, 30]", "(10, 20)", Some("(10, 20)"))]
+    // self.lo > other.hi
+    #[case("[20, 30]", "[0, 10]", None)]
+    #[case("[20, 30]", "[0, 10)", None)]
+    #[case("(20, 30]", "[0, 10]", None)]
+    #[case("(20, 30]", "[0, 10)", None)]
+    // other.lo > self.hi
+    #[case("[0, 10]", "[20, 30]", None)]
+    #[case("[0, 10)", "[20, 30]", None)]
+    #[case("[0, 10]", "(20, 30]", None)]
+    #[case("[0, 10)", "(20, 30]", None)]
+    // TODO: Inf, -Inf
+    fn test_interval_intersect(
+        #[case] this: Interval,
+        #[case] that: Interval,
+        #[case] expected: Option<&str>,
+    ) {
+        assert_eq!(
+            this.intersect(&that),
+            expected.map(int),
+            "Interval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
+        );
+    }
+
+    #[rstest]
+    #[case("(0,0)", true)]
+    #[case("(0,0]", true)]
+    #[case("[0,0)", true)]
+    #[case("[0,0]", false)]
+    #[case("(0,1)", false)]
+    fn test_interval_is_empty(#[case] interval: Interval, #[case] expected: bool) {
+        assert_eq!(
+            interval.is_empty(),
+            expected,
+            "Interval.isEmpty failed: {interval:?}.is_empty() should be {expected}"
+        );
+    }
+
+    #[rstest]
+    // Same endpoint
+    #[case("(0,0)", "(0,0)", Equal)]
+    #[case("[0,0)", "[0,0)", Equal)]
+    #[case("(0,10)", "(0,20]", Equal)]
+    #[case("[0,0)", "(0,0)", Less)]
+    #[case("(0,0)", "[0,0)", Greater)]
+    // No matter the boundary, it is Less
+    #[case("(-20,0)", "(0,0)", Less)]
+    #[case("(-20,0)", "[0,0)", Less)]
+    #[case("[-20,0)", "(0,0)", Less)]
+    #[case("[-20,0)", "[0,0)", Less)]
+    // No matter the boundary, it is Greater
+    #[case("(20,30)", "(0,0)", Greater)]
+    #[case("(20,30)", "[0,0)", Greater)]
+    #[case("[20,30)", "(0,0)", Greater)]
+    #[case("[20,30)", "[0,0)", Greater)]
+    fn test_interval_lo_cmp(
+        #[case] left: Interval,
+        #[case] right: Interval,
+        #[case] expected: Ordering,
+    ) {
+        assert_eq!(
+            left.lo_cmp(&right),
+            expected,
+            "Interval.lo_cmp failed: {left:?}.lo_cmp({right:?}) should be {expected:?}"
+        );
+    }
+
+    #[rstest]
+    // Same endpoint
+    #[case("(0,0)", "(0,0)", Equal)]
+    #[case("(0,0]", "(0,0]", Equal)]
+    #[case("(-10,0)", "(-20,0)", Equal)]
+    #[case("(0,0)", "(0,0]", Less)]
+    #[case("(0,0]", "(0,0)", Greater)]
+    // No matter the boundary, it is Less
+    #[case("(-30,-20)", "(0,0)", Less)]
+    #[case("(-30,-20)", "(0,0]", Less)]
+    #[case("(-30,-20]", "(0,0)", Less)]
+    #[case("(-30,-20]", "(0,0]", Less)]
+    // No matter the boundary, it is Greater
+    #[case("(0,20)", "(0,0)", Greater)]
+    #[case("(0,20]", "(0,0)", Greater)]
+    #[case("(0,20)", "(0,0]", Greater)]
+    #[case("(0,20]", "(0,0]", Greater)]
+    fn test_interval_hi_cmp(
+        #[case] left: Interval,
+        #[case] right: Interval,
+        #[case] expected: Ordering,
+    ) {
+        assert_eq!(
+            left.hi_cmp(&right),
+            expected,
+            "Interval.hi_cmp failed: {left:?}.hi_cmp({right:?}) should be {expected:?}"
+        );
+    }
+
+    #[rstest]
+    // zero elements
+    #[case("", "", None)]
+    // one elem - zero elem
+    #[case("[0, 10]", "", None)]
+    #[case("", "[0, 10]", None)]
+    // one element, has intersection
+    #[case("[0, 10]", "[5, 20]", Some("[5, 10]"))]
+    // one element - two elements, has intersection
+    #[case("[0, 10]", "[5, 20] [100, 200]", Some("[5, 10]"))]
+    #[case("[5, 20] [100, 200]", "[0, 10]", Some("[5, 10]"))]
+    // contains multiple intervals
+    #[case("[0, 100]", "[10, 20] [30, 40]", Some("[10, 20] [30, 40]"))]
+    // overlaps with multiple intervals
+    #[case("[20, 50]", "[0, 30] [40, 60]", Some("[20, 30] [40, 50]"))]
+    // multiple elements
+    #[case(
+        "(-Inf, 10] [20, 30] [40, 50]",
+        "(-Inf, 10) [15, 25] (26, 35]",
+        Some("(-Inf, 10) [20, 25] (26, 30]")
+    )]
+    fn test_multiinterval_intersect(
+        #[case] this: MultiInterval,
+        #[case] that: MultiInterval,
+        #[case] expected: Option<&str>,
+    ) {
+        assert_eq!(
+            this.intersect(&that),
+            expected.map(multiint),
+            "MultiInterval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
+        );
+    }
+
+    #[rstest]
+    // zero elements
+    #[case("", "(-Inf, Inf)")]
+    #[case("(-Inf, Inf)", "")]
+    // one element - -Inf on left
+    #[case("(-Inf, 10)", "[10, Inf)")]
+    #[case("(-Inf, 10]", "(10, Inf)")]
+    // one element - no Infs on either side
+    #[case("(10, 20)", "(-Inf, 10] [20, Inf)")]
+    #[case("(10, 20]", "(-Inf, 10] (20, Inf)")]
+    #[case("[10, 20)", "(-Inf, 10) [20, Inf)")]
+    #[case("[10, 20]", "(-Inf, 10) (20, Inf)")]
+    // one element - Inf on right
+    #[case("(10, Inf)", "(-Inf, 10]")]
+    #[case("[10, Inf)", "(-Inf, 10)")]
+    // multiple elements - has Inf on either side
+    #[case("(-Inf, 10) (20, Inf)", "[10, 20]")]
+    #[case("(-Inf, 10) (20, 30) (40, Inf)", "[10, 20] [30, 40]")]
+    // multiple elements - Inf on one side
+    #[case("(-Inf, 10) [20, 30)", "[10, 20) [30, Inf)")]
+    #[case(
+        "(-Inf, 10)        (20, 30)        (40, 50)",
+        "          [10, 20]        [30, 40]        [50, Inf)"
+    )]
+    #[case("(0, 10) [20, Inf)", "(-Inf, 0] [10, 20)")]
+    #[case(
+        "         [0, 10)        (20, 30)        (40, Inf)",
+        "(-Inf, 0)       [10, 20]        [30, 40]"
+    )]
+    // TODO: same endpoint, like (0,0) [0,0] (0,0] [0,0)
+    // complex examples
+    #[case(
+        "           [-42, 3)      (3, 67)         (100, 101)          [205, 607]          (700, Inf)",
+        "(-Inf, -42)        [3, 3]       [67, 100]          [101, 205)          (607, 700]",
+    )]
+    fn test_multiinterval_inverse(
+        #[case] interval: MultiInterval,
+        #[case] expected: MultiInterval,
+    ) {
+        assert_eq!(
+            interval.inverse(),
+            expected,
+            "MultiInterval.invert failed: {interval:?}.inverse() should be {expected:?}",
+        );
     }
 
     #[test]
-    fn test_Interval_intersects_with() {
-        let test_cases = vec![
-            // self.hi equals other.lo
-            (int("[0, 10]"), int("[10, 20]"), true),
-            (int("[0, 10]"), int("(10, 20]"), false),
-            (int("[0, 10)"), int("[10, 20]"), false),
-            (int("[0, 10)"), int("(10, 20]"), false),
-            // self.lo equals other.hi
-            (int("[10, 20]"), int("[0, 10]"), true),
-            (int("(10, 20]"), int("[0, 10]"), false),
-            (int("[10, 20]"), int("[0, 10)"), false),
-            (int("(10, 20]"), int("[0, 10)"), false),
-            // self.hi inside other == other.lo inside self
-            (int("[0, 10]"), int("[5, 20]"), true),
-            (int("[0, 10]"), int("(5, 20]"), true),
-            (int("[0, 10)"), int("[5, 20]"), true),
-            (int("[0, 10)"), int("(5, 20]"), true),
-            // self.lo inside other == other.hi inside self
-            (int("[5, 20]"), int("[0, 10]"), true),
-            (int("(5, 20]"), int("[0, 10]"), true),
-            (int("[5, 20]"), int("[0, 10)"), true),
-            (int("(5, 20]"), int("[0, 10)"), true),
-            // self inside other
-            (int("[10, 20]"), int("[0, 30]"), true),
-            (int("[10, 20)"), int("[0, 30]"), true),
-            (int("(10, 20]"), int("[0, 30]"), true),
-            (int("(10, 20)"), int("[0, 30]"), true),
-            // other inside self
-            (int("[0, 30]"), int("[10, 20]"), true),
-            (int("[0, 30]"), int("[10, 20)"), true),
-            (int("[0, 30]"), int("(10, 20]"), true),
-            (int("[0, 30]"), int("(10, 20)"), true),
-            // self.lo > other.hi
-            (int("[20, 30]"), int("[0, 10]"), false),
-            (int("[20, 30]"), int("[0, 10)"), false),
-            (int("(20, 30]"), int("[0, 10]"), false),
-            (int("(20, 30]"), int("[0, 10)"), false),
-            // other.lo > self.hi
-            (int("[0, 10]"), int("[20, 30]"), false),
-            (int("[0, 10)"), int("[20, 30]"), false),
-            (int("[0, 10]"), int("(20, 30]"), false),
-            (int("[0, 10)"), int("(20, 30]"), false),
-            // TODO: Inf, -Inf
-        ];
-
-        for (this, that, expected) in test_cases {
-            assert_eq!(
-                this.intersects_with(&that),
-                expected,
-                "Interval.intersects_with failed: {this:?}.intersects_with({that:?}) should be {expected:?}",
-            );
-        }
-    }
-
-    #[test]
-    fn test_Interval_intersect() {
-        let test_cases = vec![
-            // self.hi equals other.lo
-            (int("[0, 10]"), int("[10, 20]"), Some(int("[10, 10]"))),
-            (int("[0, 10]"), int("(10, 20]"), None),
-            (int("[0, 10)"), int("[10, 20]"), None),
-            (int("[0, 10)"), int("(10, 20]"), None),
-            // self.lo equals other.hi
-            (int("[10, 20]"), int("[0, 10]"), Some(int("[10, 10]"))),
-            (int("(10, 20]"), int("[0, 10]"), None),
-            (int("[10, 20]"), int("[0, 10)"), None),
-            (int("(10, 20]"), int("[0, 10)"), None),
-            // self.hi inside other == other.lo inside self
-            (int("[0, 10]"), int("[5, 20]"), Some(int("[5, 10]"))),
-            (int("[0, 10]"), int("(5, 20]"), Some(int("(5, 10]"))),
-            (int("[0, 10)"), int("[5, 20]"), Some(int("[5, 10)"))),
-            (int("[0, 10)"), int("(5, 20]"), Some(int("(5, 10)"))),
-            // self.lo inside other == other.hi inside self
-            (int("[5, 20]"), int("[0, 10]"), Some(int("[5, 10]"))),
-            (int("(5, 20]"), int("[0, 10]"), Some(int("(5, 10]"))),
-            (int("[5, 20]"), int("[0, 10)"), Some(int("[5, 10)"))),
-            (int("(5, 20]"), int("[0, 10)"), Some(int("(5, 10)"))),
-            // self inside other
-            (int("[10, 20]"), int("[0, 30]"), Some(int("[10, 20]"))),
-            (int("[10, 20)"), int("[0, 30]"), Some(int("[10, 20)"))),
-            (int("(10, 20]"), int("[0, 30]"), Some(int("(10, 20]"))),
-            (int("(10, 20)"), int("[0, 30]"), Some(int("(10, 20)"))),
-            // other inside self
-            (int("[0, 30]"), int("[10, 20]"), Some(int("[10, 20]"))),
-            (int("[0, 30]"), int("[10, 20)"), Some(int("[10, 20)"))),
-            (int("[0, 30]"), int("(10, 20]"), Some(int("(10, 20]"))),
-            (int("[0, 30]"), int("(10, 20)"), Some(int("(10, 20)"))),
-            // self.lo > other.hi
-            (int("[20, 30]"), int("[0, 10]"), None),
-            (int("[20, 30]"), int("[0, 10)"), None),
-            (int("(20, 30]"), int("[0, 10]"), None),
-            (int("(20, 30]"), int("[0, 10)"), None),
-            // other.lo > self.hi
-            (int("[0, 10]"), int("[20, 30]"), None),
-            (int("[0, 10)"), int("[20, 30]"), None),
-            (int("[0, 10]"), int("(20, 30]"), None),
-            (int("[0, 10)"), int("(20, 30]"), None),
-            // TODO: Inf, -Inf
-        ];
-
-        for (this, that, expected) in test_cases {
-            assert_eq!(
-                this.intersect(&that),
-                expected,
-                "Interval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
-            );
-        }
-    }
-
-    #[test]
-    fn test_Interval_is_empty() {
-        let test_cases = vec![
-            ("(0,0)", true),
-            ("(0,0]", true),
-            ("[0,0)", true),
-            ("[0,0]", false),
-            ("(0,1)", false),
-        ];
-
-        for (input, expected) in test_cases {
-            let interval = int(input);
-
-            assert_eq!(
-                interval.is_empty(),
-                expected,
-                "Interval.isEmpty failed: {interval:?}.is_empty() should be {expected}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_Interval_lo_cmp() {
-        use Ordering::{Equal, Greater, Less};
-        let test_cases = vec![
-            // Same endpoint
-            ("(0,0)", "(0,0)", Equal),
-            ("[0,0)", "[0,0)", Equal),
-            ("(0,10)", "(0,20]", Equal),
-            ("[0,0)", "(0,0)", Less),
-            ("(0,0)", "[0,0)", Greater),
-            // No matter the boundary, it is Less
-            ("(-20,0)", "(0,0)", Less),
-            ("(-20,0)", "[0,0)", Less),
-            ("[-20,0)", "(0,0)", Less),
-            ("[-20,0)", "[0,0)", Less),
-            // No matter the boundary, it is Greater
-            ("(20,30)", "(0,0)", Greater),
-            ("(20,30)", "[0,0)", Greater),
-            ("[20,30)", "(0,0)", Greater),
-            ("[20,30)", "[0,0)", Greater),
-        ];
-
-        for (input_left, input_right, expected) in test_cases {
-            let left = int(input_left);
-            let right = int(input_right);
-
-            assert_eq!(
-                left.lo_cmp(&right),
-                expected,
-                "Interval.lo_cmp failed: {left:?}.lo_cmp({right:?}) should be {expected:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_Interval_hi_cmp() {
-        use Ordering::{Equal, Greater, Less};
-        let test_cases = vec![
-            // Same endpoint
-            ("(0,0)", "(0,0)", Equal),
-            ("(0,0]", "(0,0]", Equal),
-            ("(-10,0)", "(-20,0)", Equal),
-            ("(0,0)", "(0,0]", Less),
-            ("(0,0]", "(0,0)", Greater),
-            // No matter the boundary, it is Less
-            ("(-30,-20)", "(0,0)", Less),
-            ("(-30,-20)", "(0,0]", Less),
-            ("(-30,-20]", "(0,0)", Less),
-            ("(-30,-20]", "(0,0]", Less),
-            // No matter the boundary, it is Greater
-            ("(0,20)", "(0,0)", Greater),
-            ("(0,20]", "(0,0)", Greater),
-            ("(0,20)", "(0,0]", Greater),
-            ("(0,20]", "(0,0]", Greater),
-        ];
-
-        for (input_left, input_right, expected) in test_cases {
-            let left = int(input_left);
-            let right = int(input_right);
-
-            assert_eq!(
-                left.hi_cmp(&right),
-                expected,
-                "Interval.hi_cmp failed: {left:?}.hi_cmp({right:?}) should be {expected:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_MultiInterval_intersect() {
-        let test_cases = vec![
-            // zero elements
-            (vec![], vec![], None),
-            // one elem - zero elem
-            (vec![int("[0, 10]")], vec![], None),
-            (vec![], vec![int("[0, 10]")], None),
-            // one element, has intersection
-            (
-                vec![int("[0, 10]")],
-                vec![int("[5, 20]")],
-                Some(vec![int("[5, 10]")]),
-            ),
-            // one element - two elements, has intersection
-            (
-                vec![int("[0, 10]")],
-                vec![int("[5, 20]"), int("[100, 200]")],
-                Some(vec![int("[5, 10]")]),
-            ),
-            (
-                vec![int("[5, 20]"), int("[100, 200]")],
-                vec![int("[0, 10]")],
-                Some(vec![int("[5, 10]")]),
-            ),
-            // contains multiple intervals
-            (
-                vec![int("[0, 100]")],
-                vec![int("[10, 20]"), int("[30, 40]")],
-                Some(vec![int("[10, 20]"), int("[30, 40]")]),
-            ),
-            // overlaps with multiple intervals
-            (
-                vec![int("[20, 50]")],
-                vec![int("[0, 30]"), int("[40, 60]")],
-                Some(vec![int("[20, 30]"), int("[40, 50]")]),
-            ),
-            // multiple elements
-            (
-                vec![int("(-Inf, 10]"), int("[20, 30]"), int("[40, 50]")],
-                vec![int("(-Inf, 10)"), int("[15, 25]"), int("(26, 35]")],
-                Some(vec![int("(-Inf, 10)"), int("[20, 25]"), int("(26, 30]")]),
-            ),
-        ];
-
-        for (a, b, expected_vec) in test_cases {
-            let this = MultiInterval { intervals: a };
-            let that = MultiInterval { intervals: b };
-            let expected = expected_vec.map(|intervals| MultiInterval { intervals });
-
-            assert_eq!(
-                this.intersect(&that),
-                expected,
-                "MultiInterval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
-            );
-        }
-    }
-
-    #[test]
-    fn test_MultiInterval_inverse() {
-        let test_cases = vec![
-            // zero elements
-            ("", "(-Inf, Inf)"),
-            ("(-Inf, Inf)", ""),
-            // one element - -Inf on left
-            ("(-Inf, 10)", "[10, Inf)"),
-            ("(-Inf, 10]", "(10, Inf)"),
-            // one element - no Infs on either side
-            ("(10, 20)", "(-Inf, 10] [20, Inf)"),
-            ("(10, 20]", "(-Inf, 10] (20, Inf)"),
-            ("[10, 20)", "(-Inf, 10) [20, Inf)"),
-            ("[10, 20]", "(-Inf, 10) (20, Inf)"),
-            // one element - Inf on right
-            ("(10, Inf)", "(-Inf, 10]"),
-            ("[10, Inf)", "(-Inf, 10)"),
-            // multiple elements - has Inf on either side
-            ("(-Inf, 10) (20, Inf)", "[10, 20]"),
-            (
-                "(-Inf, 10) (20, 30) (40, Inf)",
-                "[10, 20] [30, 40]",
-            ),
-            // multiple elements - Inf on one side
-            (
-                "(-Inf, 10) [20, 30)",
-                "[10, 20) [30, Inf)",
-            ),
-            (
-                "(-Inf, 10)        (20, 30)        (40, 50)",
-                "          [10, 20]        [30, 40]        [50, Inf)",
-            ),
-            ("(0, 10) [20, Inf)", "(-Inf, 0] [10, 20)"),
-            (
-                "         [0, 10)        (20, 30)        (40, Inf)",
-                "(-Inf, 0)       [10, 20]        [30, 40]",
-            ),
-            // TODO: same endpoint, like (0,0) [0,0] (0,0] [0,0)
-            // complex examples
-            (
-                "           [-42, 3)      (3, 67)         (100, 101)          [205, 607]          (700, Inf)",
-                "(-Inf, -42)        [3, 3]       [67, 100]          [101, 205)          (607, 700]",
-            ),
-        ];
-
-        for (interval, expected) in test_cases {
-            let interval = multiint(interval);
-            let expected = multiint(expected);
-
-            assert_eq!(
-                interval.inverse(),
-                expected,
-                "MultiInterval.invert failed: {interval:?}.inverse() should be {expected:?}",
-            );
-        }
-    }
-
-    #[test]
-    fn test_MultiInterval_axioms() {
+    fn test_multiinterval_axioms() {
         let input1 = multiint("[-42, 3) (3, 67) (100, 101) [205, 607] (700, Inf)");
 
         assert_eq!(
