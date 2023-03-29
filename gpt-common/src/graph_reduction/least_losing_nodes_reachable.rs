@@ -39,7 +39,7 @@ fn evaluate_edges_edges_reachable_count(graph: &mut UnGraph<NTupleOutput, usize>
 }
 
 pub fn run_least_losing_edges_reachable(graph: &NTupleGraph) -> NTupleGraph {
-    let mut graph: UnGraph<NTupleOutput, usize> = clone_with_different_edge_type(&graph);
+    let mut graph: UnGraph<NTupleOutput, usize> = clone_with_different_edge_type(graph);
 
     while graph.edge_count() > 0 {
         evaluate_edges_edges_reachable_count(&mut graph);

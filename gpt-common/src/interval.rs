@@ -44,7 +44,7 @@ impl Interval {
                 || (self.hi == point && self.hi_boundary == Boundary::Closed))
     }
 
-    pub fn contains(&self, other: &Interval) -> bool {
+    pub fn contains(&self, _other: &Self) -> bool {
         todo!()
     }
 
@@ -314,7 +314,7 @@ impl MultiInterval {
         self.intervals.retain(|x| !x.is_empty());
 
         // Sort the intervals
-        self.intervals.sort_by(|a, b| a.lo_cmp(&b));
+        self.intervals.sort_by(|a, b| a.lo_cmp(b));
 
         // Merging overlapping intervals
         if self.intervals.len() >= 2 {
@@ -384,7 +384,7 @@ impl Intersectable for MultiInterval {
     }
 }
 
-impl Unionable<MultiInterval, MultiInterval> for MultiInterval {
+impl Unionable<Self, Self> for MultiInterval {
     fn union(&self, other: &Self) -> Self {
         let mut intervals = self.intervals.clone();
         intervals.append(&mut other.intervals.clone());
@@ -396,10 +396,10 @@ impl Unionable<MultiInterval, MultiInterval> for MultiInterval {
     }
 }
 
-impl Unionable<Interval, MultiInterval> for Interval {
+impl Unionable<Self, MultiInterval> for Interval {
     fn union(&self, other: &Self) -> MultiInterval {
         let mut multi_interval = MultiInterval {
-            intervals: vec![self.clone(), other.clone()],
+            intervals: vec![*self, *other],
         };
         multi_interval.clean();
 
@@ -412,7 +412,7 @@ pub(crate) mod test {
     use std::{cmp::Ordering, str::FromStr};
 
     use nom::{combinator::complete, multi::many0};
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
     use rstest::rstest;
 
     use super::{Intersectable, Interval, MultiInterval};

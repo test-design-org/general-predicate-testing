@@ -7,8 +7,8 @@ use gpt_common::{
 use yew::prelude::*;
 
 /// This takes for example the variable columns of (x, y, z) and the map of {y: 10, x: 30} into [30, 10, *]
-fn sort_outputs_into_varible_columns<'a>(
-    variable_order: &Vec<String>,
+fn sort_outputs_into_varible_columns(
+    variable_order: &[String],
     ntuple: NTupleOutput,
 ) -> Vec<Option<Output>> {
     variable_order
@@ -17,11 +17,7 @@ fn sort_outputs_into_varible_columns<'a>(
         .collect()
 }
 
-fn create_test_case_table<'a>(
-    ntuples: &Vec<NTupleOutput>,
-) -> (Vec<String>, Vec<Vec<Option<Output>>>) {
-    let ntuples = ntuples.clone();
-
+fn create_test_case_table(ntuples: &[NTupleOutput]) -> (Vec<String>, Vec<Vec<Option<Output>>>) {
     let mut variables: Vec<String> = HashSet::<String>::from_iter(
         ntuples
             .iter()
@@ -34,7 +30,8 @@ fn create_test_case_table<'a>(
     variables.sort();
 
     let output = ntuples
-        .into_iter()
+        .iter()
+        .cloned()
         .map(|ntuple| sort_outputs_into_varible_columns(&variables, ntuple))
         .collect();
 

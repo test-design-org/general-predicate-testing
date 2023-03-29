@@ -70,7 +70,7 @@ fn convert_predicate_to_ntuple(
                 .iter()
                 .find(|variable| condition.get_variable() == variable.var_name)
                 // TODO: This should be an actual error in a Result type
-                .expect(&format!("Undefined variable: {}", condition.get_variable()));
+                .unwrap_or_else(|| panic!("Undefined variable: {}", condition.get_variable()));
             (
                 variable.var_name.to_owned(),
                 convert_condition(variable, condition),

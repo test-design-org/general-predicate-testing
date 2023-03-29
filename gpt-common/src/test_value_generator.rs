@@ -20,7 +20,7 @@ fn test_values_for_multiinterval(interval: &MultiInterval) -> Vec<f32> {
     interval
         .intervals
         .iter()
-        .flat_map(|int| test_value_for_interval(int))
+        .flat_map(test_value_for_interval)
         .collect()
 }
 

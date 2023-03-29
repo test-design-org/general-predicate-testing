@@ -24,7 +24,7 @@ impl<T: PartialEq + Clone> UniquesVec<T> for Vec<T> {
 
 #[cfg(test)]
 mod test {
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
     use rstest::rstest;
 
     use super::UniquesVec;

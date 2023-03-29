@@ -4,7 +4,7 @@ use std::{
     fmt::Display,
 };
 
-use crate::interval::{Intersectable, Interval, MultiInterval};
+use crate::interval::{Intersectable, MultiInterval};
 
 #[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum BoolExpression {
@@ -70,10 +70,10 @@ impl Intersectable for Output {
 
     fn intersect(&self, other: &Self) -> Option<Self> {
         match (self, other) {
-            (Self::Bool(this), Self::Bool(that)) => Some(Self::Bool(*this)),
-            (Self::Interval(this), Self::Interval(that)) => this
-                .intersect(that)
-                .map(|interval| Self::Interval(interval)),
+            (Self::Bool(this), Self::Bool(_)) => Some(Self::Bool(*this)),
+            (Self::Interval(this), Self::Interval(that)) => {
+                this.intersect(that).map(Self::Interval)
+            }
             (Self::MissingVariable, Self::MissingVariable) => Some(Self::MissingVariable),
             (_, _) => None,
         }
@@ -147,7 +147,6 @@ impl Debug for NTupleOutput {
 pub(crate) mod tests {
     use std::collections::HashMap;
 
-    use pretty_assertions::{assert_eq, assert_ne};
     use rstest::rstest;
 
     use super::{Input, NTupleInput, NTupleOutput, Output};

@@ -226,11 +226,8 @@ impl Bva for MultiInterval {
 #[cfg(test)]
 mod test {
     use super::Bva;
-    use crate::interval::{
-        test::{int, multiint},
-        Interval, MultiInterval,
-    };
-    use pretty_assertions::{assert_eq, assert_ne};
+    use crate::interval::{Interval, MultiInterval};
+    use pretty_assertions::assert_eq;
     use rstest::rstest;
 
     #[rstest]

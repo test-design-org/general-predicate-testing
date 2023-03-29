@@ -173,7 +173,7 @@ mod tests {
         interval::Boundary,
     };
 
-    use Boundary::{Closed, Open};
+    use Boundary::Open;
 
     use super::generate_test_cases_for_inputs;
 
