@@ -4,7 +4,7 @@ use std::{
     fmt::Display,
 };
 
-use crate::interval::{Intersectable, MultiInterval};
+use crate::interval::{Intersectable, Interval, MultiInterval};
 
 #[derive(Clone, PartialEq, Eq, Debug, Copy)]
 pub enum BoolExpression {
@@ -53,13 +53,19 @@ pub struct NTupleInput {
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub enum Output {
+pub enum Output<T>
+where
+    T: Intersectable,
+{
     MissingVariable,
     Bool(bool),
-    Interval(MultiInterval),
+    Interval(T),
 }
 
-impl Intersectable for Output {
+impl<T> Intersectable for Output<T>
+where
+    T: Intersectable,
+{
     fn intersects_with(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Bool(this), Self::Bool(that)) => this == that,
@@ -82,13 +88,15 @@ impl Intersectable for Output {
 
 #[derive(PartialEq, Clone)]
 pub struct NTupleOutput {
-    pub outputs: HashMap<String, Output>,
+    pub outputs: HashMap<String, Output<MultiInterval>>,
 }
 
-impl Intersectable for NTupleOutput {
+pub type NTupleSingleInterval = HashMap<String, Output<Interval>>;
+
+impl Intersectable for NTupleSingleInterval {
     fn intersects_with(&self, other: &Self) -> bool {
-        for (var_name, input) in self.outputs.iter() {
-            if let Some(other_input) = other.outputs.get(var_name) {
+        for (var_name, input) in self.iter() {
+            if let Some(other_input) = other.get(var_name) {
                 if !input.intersects_with(other_input) {
                     return false;
                 }
@@ -103,12 +111,11 @@ impl Intersectable for NTupleOutput {
             return None;
         }
 
-        let var_names_in_both =
-            HashSet::<&String>::from_iter(self.outputs.keys().chain(other.outputs.keys()));
+        let var_names_in_both = HashSet::<&String>::from_iter(self.keys().chain(other.keys()));
 
-        let intersected_outputs: HashMap<String, Output> = var_names_in_both.iter().filter_map(|var_name| {
+        let intersected_outputs: Self = var_names_in_both.iter().filter_map(|var_name| {
             let var_name = (*var_name).clone();
-            let intersection = match (self.outputs.get(&*var_name), other.outputs.get(&*var_name)) {
+            let intersection = match (self.get(&*var_name), other.get(&*var_name)) {
                 (None, None) => panic!("in NTuple intersection, variable name should be at least in one of the maps, because we use keys from the maps"),
                 (Some(x), None) => Some(x.clone()),
                 (None, Some(y)) => Some(y.clone()),
@@ -118,11 +125,9 @@ impl Intersectable for NTupleOutput {
             Some((var_name, intersection))
         })
         .map(|(var_name, input)| (var_name, input))
-        .collect::<HashMap<String, Output>>();
+        .collect();
 
-        Some(Self {
-            outputs: intersected_outputs,
-        })
+        Some(intersected_outputs)
     }
 }
 
@@ -149,8 +154,8 @@ pub(crate) mod tests {
 
     use rstest::rstest;
 
-    use super::{Input, NTupleInput, NTupleOutput, Output};
-    use crate::interval::{test::multiint, Intersectable};
+    use super::{Input, NTupleInput, NTupleOutput, NTupleSingleInterval, Output};
+    use crate::interval::{test::int, Intersectable, Interval, MultiInterval};
 
     pub fn create_ntuple_input(inputs: Vec<(&str, Input)>) -> NTupleInput {
         NTupleInput {
@@ -162,7 +167,7 @@ pub(crate) mod tests {
         }
     }
 
-    pub fn create_ntuple_output(outputs: Vec<(&str, Output)>) -> NTupleOutput {
+    pub fn create_ntuple_output(outputs: Vec<(&str, Output<MultiInterval>)>) -> NTupleOutput {
         NTupleOutput {
             outputs: HashMap::from_iter(
                 outputs
@@ -172,49 +177,61 @@ pub(crate) mod tests {
         }
     }
 
+    pub fn create_ntuple_single_interval(
+        outputs: Vec<(&str, Output<Interval>)>,
+    ) -> NTupleSingleInterval {
+        HashMap::from_iter(
+            outputs
+                .into_iter()
+                .map(|(var_name, output)| (var_name.to_owned(), output)),
+        )
+    }
+
     #[rstest]
     #[case::same(vec![
-        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("x", Output::Interval(int("[10, 20]"))),
         ("y", Output::Bool(true))
     ],vec![
-        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("x", Output::Interval(int("[10, 20]"))),
         ("y", Output::Bool(true))
     ])]
     #[case::non_intersectable_different_variables(vec![
-        ("x", Output::Interval(multiint("[0, 100]"))),
+        ("x", Output::Interval(int("[0, 100]"))),
         ("y", Output::Bool(true))
     ],vec![
-        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("x", Output::Interval(int("[10, 20]"))),
         ("z", Output::Bool(false))
     ])]
     #[case::empty_left(vec![], vec![
-        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("x", Output::Interval(int("[10, 20]"))),
         ("z", Output::Bool(false))
     ])]
     #[case::empty_right(vec![
-        ("x", Output::Interval(multiint("[0, 100]"))),
+        ("x", Output::Interval(int("[0, 100]"))),
         ("y", Output::Bool(true))
     ],vec![])]
     #[case::both_empty(vec![], vec![])]
     fn test_ntuple_intersects_with(
-        #[case] left: Vec<(&str, Output)>,
-        #[case] right: Vec<(&str, Output)>,
+        #[case] left: Vec<(&str, Output<Interval>)>,
+        #[case] right: Vec<(&str, Output<Interval>)>,
     ) {
-        assert!(create_ntuple_output(left).intersects_with(&create_ntuple_output(right)));
+        assert!(create_ntuple_single_interval(left)
+            .intersects_with(&create_ntuple_single_interval(right)));
     }
 
     #[rstest]
     #[case::non_intersectable_same_variables(vec![
-        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("x", Output::Interval(int("[10, 20]"))),
         ("y", Output::Bool(true))
     ],vec![
-        ("x", Output::Interval(multiint("[10, 20]"))),
+        ("x", Output::Interval(int("[10, 20]"))),
         ("y", Output::Bool(false))
     ])]
     fn test_ntuple_not_intersects_with(
-        #[case] left: Vec<(&str, Output)>,
-        #[case] right: Vec<(&str, Output)>,
+        #[case] left: Vec<(&str, Output<Interval>)>,
+        #[case] right: Vec<(&str, Output<Interval>)>,
     ) {
-        assert!(!create_ntuple_output(left).intersects_with(&create_ntuple_output(right)));
+        assert!(!create_ntuple_single_interval(left)
+            .intersects_with(&create_ntuple_single_interval(right)));
     }
 }

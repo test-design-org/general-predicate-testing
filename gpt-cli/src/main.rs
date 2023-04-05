@@ -6,18 +6,10 @@
     clippy::cargo
 )]
 
-use crate::dto::NTupleOutput;
-use crate::graph_reduction::{create_graph, MONKE::run_MONKE};
-
-use crate::test_case_generator::generate_test_cases_for_multiple_features;
-
-mod bva;
-pub mod dto;
-mod graph_reduction;
-pub mod interval;
-pub mod parser;
-mod test_case_generator;
-mod util;
+use gpt_common::dto::NTupleSingleInterval;
+use gpt_common::graph_reduction::{create_graph, MONKE::run_MONKE};
+use gpt_common::parser;
+use gpt_common::test_case_generator::generate_test_cases_for_multiple_features;
 
 pub fn main() {
     let input1 = r#"
@@ -63,7 +55,7 @@ pub fn main() {
     let monked_test_cases = monked_graph
         .node_weights()
         .cloned()
-        .collect::<Vec<NTupleOutput>>();
+        .collect::<Vec<NTupleSingleInterval>>();
 
     println!("After running MONKE:");
     println!("{:#?}", monked_test_cases);

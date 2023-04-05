@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "gpt-cli",
     "gpt-common",
     "gpt-frontend"
 ]

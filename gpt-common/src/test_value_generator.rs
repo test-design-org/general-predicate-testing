@@ -1,6 +1,6 @@
 use crate::{
     dto::Output,
-    interval::{Interval, MultiInterval},
+    interval::{self, Interval, MultiInterval},
 };
 
 fn test_value_for_interval(interval: &Interval) -> Option<f32> {
@@ -16,17 +16,8 @@ fn test_value_for_interval(interval: &Interval) -> Option<f32> {
     }
 }
 
-fn test_values_for_multiinterval(interval: &MultiInterval) -> Vec<f32> {
-    interval
-        .intervals
-        .iter()
-        .flat_map(test_value_for_interval)
-        .collect()
-}
-
 // TODO: There should be a value which returns the whole test case table
-//       This is an issue, because for MultiIntervals there could be multiple test values, which would mean multiple test cases
-pub fn generate_test_value(output: &Output, show_interval_values: bool) -> String {
+pub fn generate_test_value(output: &Output<Interval>, show_interval_values: bool) -> String {
     match output {
         Output::MissingVariable => "*".to_owned(),
         Output::Bool(bool_val) => {
@@ -40,7 +31,11 @@ pub fn generate_test_value(output: &Output, show_interval_values: bool) -> Strin
             if show_interval_values {
                 format!("{:?}", interval)
             } else {
-                format!("{:?}", test_values_for_multiinterval(interval))
+                format!(
+                    "{:?}",
+                    test_value_for_interval(interval)
+                        .expect("NTupleSingleInterval should not be empty, it was checked before")
+                )
             }
         }
     }

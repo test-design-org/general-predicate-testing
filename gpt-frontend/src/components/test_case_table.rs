@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use gpt_common::{
-    dto::{NTupleOutput, Output},
+    dto::{NTupleOutput, NTupleSingleInterval, Output},
+    interval::{Interval, MultiInterval},
     test_value_generator::generate_test_value,
 };
 use yew::prelude::*;
@@ -9,23 +10,21 @@ use yew::prelude::*;
 /// This takes for example the variable columns of (x, y, z) and the map of {y: 10, x: 30} into [30, 10, *]
 fn sort_outputs_into_varible_columns(
     variable_order: &[String],
-    ntuple: NTupleOutput,
-) -> Vec<Option<Output>> {
+    ntuple: NTupleSingleInterval,
+) -> Vec<Option<Output<Interval>>> {
     variable_order
         .iter()
-        .map(|var_name| ntuple.outputs.get(&*var_name.clone()).cloned())
+        .map(|var_name| ntuple.get(&*var_name.clone()).cloned())
         .collect()
 }
 
-fn create_test_case_table(ntuples: &[NTupleOutput]) -> (Vec<String>, Vec<Vec<Option<Output>>>) {
-    let mut variables: Vec<String> = HashSet::<String>::from_iter(
-        ntuples
-            .iter()
-            .flat_map(|ntuple| ntuple.outputs.keys())
-            .cloned(),
-    )
-    .into_iter()
-    .collect();
+fn create_test_case_table(
+    ntuples: &[NTupleSingleInterval],
+) -> (Vec<String>, Vec<Vec<Option<Output<Interval>>>>) {
+    let mut variables: Vec<String> =
+        HashSet::<String>::from_iter(ntuples.iter().flat_map(|ntuple| ntuple.keys()).cloned())
+            .into_iter()
+            .collect();
 
     variables.sort();
 
@@ -42,7 +41,7 @@ fn create_test_case_table(ntuples: &[NTupleOutput]) -> (Vec<String>, Vec<Vec<Opt
 pub struct Props {
     // variables: Vec<String>,
     // graph: String,
-    pub test_cases: Vec<NTupleOutput>,
+    pub test_cases: Vec<NTupleSingleInterval>,
 }
 
 #[function_component(TestCaseTable)]

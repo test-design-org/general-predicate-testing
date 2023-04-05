@@ -11,6 +11,7 @@ thiserror = "1"
 petgraph = "0.6.2"
 urlencoding = "2.1.2"
 log = "0.4.6"
+itertools = { version = "0.10.5", features = ["use_std"] }
 
 [dev-dependencies]
 rstest = "0.17.0"

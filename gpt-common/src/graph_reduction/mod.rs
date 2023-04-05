@@ -8,12 +8,15 @@ use std::fmt::Debug;
 use petgraph::{dot::Dot, prelude::UnGraph};
 use urlencoding::encode;
 
-use crate::{dto::NTupleOutput, interval::Intersectable};
+use crate::{
+    dto::{NTupleOutput, NTupleSingleInterval},
+    interval::Intersectable,
+};
 
-pub type NTupleGraph = UnGraph<NTupleOutput, ()>;
+pub type NTupleGraph = UnGraph<NTupleSingleInterval, ()>;
 
-pub fn create_graph(ntuples: &[NTupleOutput]) -> NTupleGraph {
-    let mut graph = UnGraph::<NTupleOutput, ()>::new_undirected();
+pub fn create_graph(ntuples: &[NTupleSingleInterval]) -> NTupleGraph {
+    let mut graph = UnGraph::<NTupleSingleInterval, ()>::new_undirected();
 
     for ntuple in ntuples.iter() {
         graph.add_node(ntuple.clone());
@@ -43,7 +46,7 @@ pub fn create_graph(ntuples: &[NTupleOutput]) -> NTupleGraph {
     graph
 }
 
-pub fn create_graph_url<E>(graph: &UnGraph<NTupleOutput, E>) -> String
+pub fn create_graph_url<E>(graph: &UnGraph<NTupleSingleInterval, E>) -> String
 where
     E: Debug,
 {
