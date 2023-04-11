@@ -1,157 +1,179 @@
 use std::collections::HashMap;
 
-use crate::dto::{BoolDTO, BoolExpression, Expression, NTupleOutput, Output};
-use crate::interval::Interval;
+use itertools::Itertools;
+
+use crate::bva::Bva;
+use crate::dto::{BoolDTO, BoolExpression, NTupleOutput, NTupleSingleInterval, Output};
+use crate::interval::{Interval, MultiInterval};
 use crate::util::UniquesVec;
 
 use crate::{
     dto::{Input, IntervalDTO, NTupleInput},
-    interval::{Boundary, IntervalError},
+    interval::IntervalError,
 };
 
 pub fn generate_test_cases_for_multiple_features(
     features: &Vec<Vec<NTupleInput>>,
-) -> Result<Vec<NTupleOutput>, IntervalError> {
+) -> Result<Vec<NTupleSingleInterval>, IntervalError> {
     let mut res = Vec::new();
     for feature in features {
-        let mut test_cases = generate_test_cases_for_feature(feature)?;
+        let mut test_cases = generate_test_cases_for_feature(feature);
         res.append(&mut test_cases);
     }
     Ok(res)
 }
 
-fn generate_test_cases_for_feature(
-    n_tuples: &[NTupleInput],
-) -> Result<Vec<NTupleOutput>, IntervalError> {
+fn generate_test_cases_for_feature(n_tuples: &[NTupleInput]) -> Vec<NTupleSingleInterval> {
     let mut result_test_cases = Vec::new();
     for ntuple in n_tuples {
-        let mut test_cases = generate_test_cases_for_inputs(&ntuple.clone())?;
+        let mut test_cases = generate_test_cases_for_inputs(&ntuple.clone());
         result_test_cases.append(&mut test_cases);
     }
 
-    Ok(result_test_cases)
+    result_test_cases
 }
 
-fn generate_test_cases_for_inputs(
-    inputs: &NTupleInput,
-) -> Result<Vec<NTupleOutput>, IntervalError> {
-    let mut modified_inputs = vec![
-        calculate_in_on_patterns1(inputs)?,
-        calculate_in_on_patterns2(inputs)?,
-    ];
-    modified_inputs.extend(off_out(inputs)?);
+fn generate_test_cases_for_inputs(inputs: &NTupleInput) -> Vec<NTupleSingleInterval> {
+    let mut modified_inputs = calc_in_on_inin(inputs);
+    modified_inputs.extend(off_out(inputs));
 
     modified_inputs = modified_inputs.uniques();
 
-    Ok(modified_inputs)
+    modified_inputs
+        .iter()
+        .flat_map(ntuple_multi_cartesian_product)
+        .collect()
 }
 
-fn calculate_in_on_patterns1(ntuple: &NTupleInput) -> Result<NTupleOutput, IntervalError> {
-    let outputs = ntuple
-        .inputs
+/// Creates the cartesian product of all multiintervals in the NTuple.
+/// If a multiinterval would have multiple intervals, it creates an NTuple with all the possible single interval combinations.
+fn ntuple_multi_cartesian_product(ntuple: &NTupleOutput) -> Vec<NTupleSingleInterval> {
+    if ntuple.outputs.iter().any(|(_, output)| match output {
+        Output::MissingVariable => false,
+        Output::Bool(_) => false,
+        Output::Interval(interval) => interval.is_empty(),
+    }) {
+        return Vec::new();
+    }
+
+    let mut res: Vec<NTupleSingleInterval> = Vec::new();
+
+    let first: NTupleSingleInterval = ntuple
+        .outputs
         .iter()
-        .map(
-            |(var_name, input)| -> Result<(String, Output), IntervalError> {
+        .map(|(var_name, output)| {
+            (
+                var_name.to_owned(),
+                match output {
+                    Output::MissingVariable => Output::MissingVariable,
+                    Output::Bool(x) => Output::Bool(*x),
+                    Output::Interval(x) => Output::Interval(x.intervals[0]),
+                },
+            )
+        })
+        .collect();
+
+    res.push(first);
+
+    for (var_name, output) in ntuple.outputs.iter()
+    // .sorted_unstable_by_key(|(var_name, _)| var_name.to_owned())
+    {
+        let current = res.clone();
+
+        match output {
+            Output::MissingVariable | Output::Bool(_) => (),
+            Output::Interval(interval) => {
+                let mut new = Vec::new();
+                for interval in interval.intervals.iter().skip(1) {
+                    for x in current.iter() {
+                        let mut x = x.clone();
+                        x.insert(var_name.clone(), Output::Interval(*interval));
+                        new.push(x);
+                    }
+                }
+                res.append(&mut new);
+            }
+        }
+    }
+
+    res
+}
+
+fn calc_in_on_inin(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
+    fn input_to_output(
+        ntuple: &NTupleInput,
+        f: impl Fn(&MultiInterval, f32) -> MultiInterval,
+    ) -> HashMap<String, Output<MultiInterval>> {
+        ntuple
+            .inputs
+            .iter()
+            .map(|(var_name, input)| -> (String, Output<MultiInterval>) {
                 let output = match input {
-                    Input::Bool(BoolDTO { bool_val, .. }) => Ok(Output::Bool(*bool_val)),
+                    Input::Bool(BoolDTO { bool_val, .. }) => Output::Bool(*bool_val),
                     Input::Interval(IntervalDTO {
                         is_constant,
                         interval,
                         ..
-                    }) if *is_constant => Ok(Output::Interval(*interval)),
-                    Input::Interval(interval_dto) => match interval_dto.expression {
-                        Expression::LessThan | Expression::LessThanOrEqualTo => {
-                            in_in(interval_dto, InInVersion::IntervalRight)
-                        }
-
-                        Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
-
-                        Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
-                            in_in(interval_dto, InInVersion::IntervalLeft)
-                        }
-
-                        Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalRight),
-                        Expression::Interval => Ok(on(interval_dto, OnVersion::IntervalLeft)),
-                    },
-                }?;
-
-                Ok((var_name.clone(), output))
-            },
-        )
-        .collect::<Result<HashMap<String, Output>, IntervalError>>()?;
-
-    Ok(NTupleOutput { outputs })
-}
-
-fn calculate_in_on_patterns2(ntuple: &NTupleInput) -> Result<NTupleOutput, IntervalError> {
-    let outputs = ntuple
-        .inputs
-        .iter()
-        .map(
-            |(var_name, input)| -> Result<(String, Output), IntervalError> {
-                let output = match input {
-                    Input::Bool(BoolDTO { bool_val, .. }) => Ok(Output::Bool(*bool_val)),
+                    }) if *is_constant => Output::Interval(interval.clone()),
                     Input::Interval(IntervalDTO {
-                        is_constant,
                         interval,
+                        precision,
                         ..
-                    }) if *is_constant => Ok(Output::Interval(*interval)),
-                    Input::Interval(interval_dto) => match interval_dto.expression {
-                        Expression::LessThan | Expression::LessThanOrEqualTo => {
-                            Ok(on(interval_dto, OnVersion::IntervalRight))
-                        }
+                    }) => Output::Interval(f(interval, *precision)),
+                };
 
-                        Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
+                (var_name.clone(), output)
+            })
+            .collect()
+    }
 
-                        Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
-                            Ok(on(interval_dto, OnVersion::IntervalLeft))
-                        }
+    let ins = input_to_output(ntuple, |interval, precision| {
+        match interval.calc_in(precision) {
+            x if x.is_empty() => interval.on(precision),
+            x => x,
+        }
+    });
 
-                        Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalLeft),
-                        Expression::Interval => Ok(on(interval_dto, OnVersion::IntervalRight)),
-                    },
-                }?;
+    let ons = input_to_output(ntuple, |interval, precision| interval.on(precision));
 
-                Ok((var_name.to_owned(), output))
-            },
-        )
-        .collect::<Result<HashMap<String, Output>, IntervalError>>()?;
-
-    Ok(NTupleOutput { outputs })
+    let inins = input_to_output(ntuple, |interval, precision| {
+        match interval.inin(precision) {
+            x if x.is_empty() => interval.on(precision),
+            x => x,
+        }
+    });
+    vec![
+        NTupleOutput { outputs: ins },
+        NTupleOutput { outputs: ons },
+        NTupleOutput { outputs: inins },
+    ]
 }
 
-fn baseline(ntuple: &NTupleInput) -> Result<NTupleOutput, IntervalError> {
+fn baseline(ntuple: &NTupleInput) -> NTupleOutput {
     let outputs = ntuple
         .inputs
-        .iter()
-        .map(
-            |(var_name, input)| -> Result<(String, Output), IntervalError> {
-                let output = match input {
-                    Input::Bool(BoolDTO { bool_val, .. }) => Ok(Output::Bool(*bool_val)),
-                    Input::Interval(interval_dto) => match interval_dto.expression {
-                        Expression::LessThan | Expression::LessThanOrEqualTo => {
-                            calc_in(interval_dto, InVersion::IntervalRight)
-                        }
+        .clone()
+        .into_iter()
+        .map(|(var_name, input)| {
+            let outputs = match input {
+                Input::Bool(BoolDTO { bool_val, .. }) => Output::Bool(bool_val),
+                Input::Interval(IntervalDTO {
+                    interval,
+                    precision,
+                    ..
+                }) => Output::Interval(interval.calc_in(precision)),
+            };
 
-                        Expression::GreaterThan
-                        | Expression::GreaterThanOrEqualTo
-                        | Expression::NotEqualTo => calc_in(interval_dto, InVersion::IntervalLeft),
+            (var_name, outputs)
+        })
+        .collect::<HashMap<String, Output<MultiInterval>>>();
 
-                        Expression::EqualTo => Ok(on(interval_dto, OnVersion::IntervalEqual)),
-                        Expression::Interval => calc_in(interval_dto, InVersion::Interval),
-                    },
-                }?;
-
-                Ok((var_name.clone(), output))
-            },
-        )
-        .collect::<Result<HashMap<String, Output>, IntervalError>>()?;
-
-    Ok(NTupleOutput { outputs })
+    NTupleOutput { outputs }
 }
 
-fn off_out(ntuple: &NTupleInput) -> Result<Vec<NTupleOutput>, IntervalError> {
+fn off_out(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
     let mut output: Vec<NTupleOutput> = Vec::new();
+    let base = baseline(ntuple);
 
     for (i, input) in ntuple.inputs.iter() {
         match input {
@@ -160,289 +182,250 @@ fn off_out(ntuple: &NTupleInput) -> Result<Vec<NTupleOutput>, IntervalError> {
             _ => (),
         }
 
-        let mut based1 = baseline(&ntuple)?;
-        let mut based2 = baseline(&ntuple)?;
-        let mut based3 = baseline(&ntuple)?;
-        let mut based4 = baseline(&ntuple)?;
-
         match input {
             Input::Bool(BoolDTO { expression, .. }) => match expression {
                 BoolExpression::IsTrue => {
-                    based1.outputs.insert(i.to_owned(), Output::Bool(false));
-                    output.push(based1);
+                    let mut base_bool_true = base.clone();
+                    base_bool_true
+                        .outputs
+                        .insert(i.to_owned(), Output::Bool(false));
+                    output.push(base_bool_true);
                 }
                 BoolExpression::IsFalse => {
-                    based1.outputs.insert(i.to_owned(), Output::Bool(true));
-                    output.push(based1);
+                    let mut base_bool_false = base.clone();
+                    base_bool_false
+                        .outputs
+                        .insert(i.to_owned(), Output::Bool(true));
+                    output.push(base_bool_false);
                 }
             },
-            Input::Interval(interval_dto @ IntervalDTO { expression, .. }) => match expression {
-                Expression::LessThan | Expression::LessThanOrEqualTo => {
-                    based1
-                        .outputs
-                        .insert(i.to_owned(), out(interval_dto, OutVersion::IntervalRight)?);
-                    based2
-                        .outputs
-                        .insert(i.to_owned(), off(interval_dto, OffVersion::IntervalRight));
+            Input::Interval(IntervalDTO {
+                interval,
+                precision,
+                ..
+            }) => {
+                let mut base_off = base.clone();
+                base_off
+                    .outputs
+                    .insert(i.to_owned(), Output::Interval(interval.off(*precision)));
 
-                    output.push(based1);
-                    output.push(based2);
-                }
-                Expression::GreaterThan | Expression::GreaterThanOrEqualTo => {
-                    based1
-                        .outputs
-                        .insert(i.to_owned(), out(interval_dto, OutVersion::IntervalLeft)?);
-                    based2
-                        .outputs
-                        .insert(i.to_owned(), off(interval_dto, OffVersion::IntervalLeft));
+                let mut base_out = base.clone();
+                base_out
+                    .outputs
+                    .insert(i.to_owned(), Output::Interval(interval.out(*precision)));
 
-                    output.push(based1);
-                    output.push(based2);
-                }
-                Expression::EqualTo => {
-                    based1
-                        .outputs
-                        .insert(i.to_owned(), out(interval_dto, OutVersion::Right)?);
-                    based2
-                        .outputs
-                        .insert(i.to_owned(), out(interval_dto, OutVersion::Left)?);
-
-                    output.push(based1);
-                    output.push(based2);
-                }
-                Expression::NotEqualTo => {
-                    based1
-                        .outputs
-                        .insert(i.to_owned(), off(interval_dto, OffVersion::IntervalRight)); // TODO: This was 0 in the OG code, which meant no transformation, I think that's a bug
-
-                    output.push(based1);
-                }
-                Expression::Interval => {
-                    based1
-                        .outputs
-                        .insert(i.to_owned(), out(interval_dto, OutVersion::IntervalRight)?);
-                    based2
-                        .outputs
-                        .insert(i.to_owned(), out(interval_dto, OutVersion::IntervalLeft)?);
-                    based3
-                        .outputs
-                        .insert(i.to_owned(), off(interval_dto, OffVersion::IntervalRight));
-                    based4
-                        .outputs
-                        .insert(i.to_owned(), off(interval_dto, OffVersion::IntervalLeft));
-
-                    output.push(based1);
-                    output.push(based4);
-                    output.push(based3);
-                    output.push(based2);
-                }
-            },
+                output.push(base_off);
+                output.push(base_out);
+            }
         }
     }
 
-    Ok(output)
-}
-
-enum OnVersion {
-    IntervalEqual,
-    IntervalRight,
-    IntervalLeft,
-}
-
-fn on(input: &IntervalDTO, version: OnVersion) -> Output {
-    let interval = match version {
-        // ==
-        OnVersion::IntervalEqual => input.interval,
-        // <, <=, Interval Right
-        OnVersion::IntervalRight => Interval::new_closed_point(
-            input.interval.hi
-                - if input.interval.hi_boundary == Boundary::Open {
-                    1.0
-                } else {
-                    0.0
-                } * input.precision,
-        ),
-        // >, >=, Interval left
-        OnVersion::IntervalLeft => Interval::new_closed_point(
-            input.interval.lo
-                + if input.interval.lo_boundary == Boundary::Open {
-                    1.0
-                } else {
-                    0.0
-                } * input.precision,
-        ),
-    };
-
-    Output::Interval(interval)
-}
-
-enum InVersion {
-    IntervalRight,
-    IntervalLeft,
-    Interval,
-}
-
-fn calc_in(input: &IntervalDTO, version: InVersion) -> Result<Output, IntervalError> {
-    let interval = match version {
-        // <, <=
-        InVersion::IntervalRight => Interval::new_closed(
-            f32::NEG_INFINITY,
-            input.interval.hi
-                - if input.interval.hi_boundary == Boundary::Open {
-                    1.0
-                } else {
-                    0.0
-                } * input.precision,
-        )?,
-        // >, >=
-        InVersion::IntervalLeft => Interval::new_closed(
-            input.interval.lo
-                + if input.interval.lo_boundary == Boundary::Open {
-                    1.0
-                } else {
-                    0.0
-                } * input.precision,
-            f32::INFINITY,
-        )?,
-        // Interval
-        InVersion::Interval => Interval::new_closed(
-            input.interval.lo
-                + if input.interval.lo_boundary == Boundary::Open {
-                    1.0
-                } else {
-                    0.0
-                } * input.precision,
-            input.interval.hi
-                - if input.interval.hi_boundary == Boundary::Open {
-                    1.0
-                } else {
-                    0.0
-                } * input.precision,
-        )?,
-    };
-
-    Ok(Output::Interval(interval))
-}
-
-enum InInVersion {
-    IntervalRight,
-    IntervalLeft,
-}
-
-fn in_in(input: &IntervalDTO, version: InInVersion) -> Result<Output, IntervalError> {
-    let interval = match version {
-        // <, <=
-        InInVersion::IntervalRight => Interval::new_closed(
-            f32::NEG_INFINITY,
-            input.interval.hi
-                - if input.interval.hi_boundary == Boundary::Open {
-                    2.0
-                } else {
-                    1.0
-                } * input.precision,
-        )?,
-        // >, >=
-        InInVersion::IntervalLeft => Interval::new_closed(
-            input.interval.lo
-                + if input.interval.lo_boundary == Boundary::Open {
-                    2.0
-                } else {
-                    1.0
-                } * input.precision,
-            f32::INFINITY,
-        )?,
-    };
-
-    Ok(Output::Interval(interval))
-}
-enum OffVersion {
-    IntervalRight,
-    IntervalLeft,
-}
-
-fn off(input: &IntervalDTO, version: OffVersion) -> Output {
-    let interval = match version {
-        // <, <=, Interval Right, == right
-        OffVersion::IntervalRight => Interval::new_closed_point(
-            input.interval.hi
-                + if input.interval.hi_boundary == Boundary::Open {
-                    0.0
-                } else {
-                    1.0
-                } * input.precision,
-        ),
-        // >, >=, // Interval left, == left
-        OffVersion::IntervalLeft => Interval::new_closed_point(
-            input.interval.lo
-                - if input.interval.lo_boundary == Boundary::Open {
-                    0.0
-                } else {
-                    1.0
-                } * input.precision,
-        ),
-    };
-
-    Output::Interval(interval)
-}
-
-enum OutVersion {
-    IntervalRight,
-    IntervalLeft,
-    Right,
-    Left,
-}
-
-fn out(input: &IntervalDTO, version: OutVersion) -> Result<Output, IntervalError> {
-    let interval = match version {
-        // <, <=, Interval Right
-        OutVersion::IntervalRight => Interval::new_closed(
-            input.interval.hi
-                + if input.interval.hi_boundary == Boundary::Open {
-                    1.0
-                } else {
-                    2.0
-                } * input.precision,
-            f32::INFINITY,
-        )?,
-        // >, =>, Interval Left
-        OutVersion::IntervalLeft => Interval::new_closed(
-            f32::NEG_INFINITY,
-            input.interval.lo
-                - if input.interval.lo_boundary == Boundary::Open {
-                    1.0
-                } else {
-                    2.0
-                } * input.precision,
-        )?,
-        // =, Right
-        OutVersion::Right => {
-            Interval::new_closed(input.interval.hi + input.precision, f32::INFINITY)?
-        }
-        // =, Left
-        OutVersion::Left => {
-            Interval::new_closed(f32::NEG_INFINITY, input.interval.lo - input.precision)?
-        }
-    };
-
-    Ok(Output::Interval(interval))
+    output
 }
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+    use std::collections::HashMap;
+
+    use crate::dto::tests::create_ntuple_single_interval;
     use crate::dto::tests::{create_ntuple_input, create_ntuple_output};
+    use crate::dto::NTupleSingleInterval;
+    use crate::interval::test::{int, multiint};
+    use crate::interval::{Interval, MultiInterval};
     use crate::{
         dto::{BoolDTO, BoolExpression, Expression, Input, IntervalDTO, Output},
-        interval::{Boundary, Interval},
+        interval::Boundary,
     };
 
-    use super::generate_test_cases_for_inputs;
+    use Boundary::Open;
+
+    use super::{generate_test_cases_for_inputs, ntuple_multi_cartesian_product};
+
+    #[test]
+    fn test_all_possible_combinations() {
+        let input = create_ntuple_output(vec![
+            ("a", Output::Interval(multiint("[1,1]"))),
+            ("b", Output::Bool(true)),
+            ("c", Output::Interval(multiint("[2,2] [3,3] [4,4]"))),
+            ("d", Output::Interval(multiint("[5,5] [6,6]"))),
+            ("e", Output::Interval(multiint("[7,7] [8,8] [9,9]"))),
+        ]);
+
+        let expected: Vec<NTupleSingleInterval> = vec![
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[2,2]"))),
+                ("d".to_owned(), Output::Interval(int("[5,5]"))),
+                ("e".to_owned(), Output::Interval(int("[7,7]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[3,3]"))),
+                ("d".to_owned(), Output::Interval(int("[5,5]"))),
+                ("e".to_owned(), Output::Interval(int("[7,7]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[4,4]"))),
+                ("d".to_owned(), Output::Interval(int("[5,5]"))),
+                ("e".to_owned(), Output::Interval(int("[7,7]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[2,2]"))),
+                ("d".to_owned(), Output::Interval(int("[6,6]"))),
+                ("e".to_owned(), Output::Interval(int("[7,7]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[3,3]"))),
+                ("d".to_owned(), Output::Interval(int("[6,6]"))),
+                ("e".to_owned(), Output::Interval(int("[7,7]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[4,4]"))),
+                ("d".to_owned(), Output::Interval(int("[6,6]"))),
+                ("e".to_owned(), Output::Interval(int("[7,7]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[2,2]"))),
+                ("d".to_owned(), Output::Interval(int("[5,5]"))),
+                ("e".to_owned(), Output::Interval(int("[8,8]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[3,3]"))),
+                ("d".to_owned(), Output::Interval(int("[5,5]"))),
+                ("e".to_owned(), Output::Interval(int("[8,8]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[4,4]"))),
+                ("d".to_owned(), Output::Interval(int("[5,5]"))),
+                ("e".to_owned(), Output::Interval(int("[8,8]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[2,2]"))),
+                ("d".to_owned(), Output::Interval(int("[6,6]"))),
+                ("e".to_owned(), Output::Interval(int("[8,8]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[3,3]"))),
+                ("d".to_owned(), Output::Interval(int("[6,6]"))),
+                ("e".to_owned(), Output::Interval(int("[8,8]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[4,4]"))),
+                ("d".to_owned(), Output::Interval(int("[6,6]"))),
+                ("e".to_owned(), Output::Interval(int("[8,8]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[2,2]"))),
+                ("d".to_owned(), Output::Interval(int("[5,5]"))),
+                ("e".to_owned(), Output::Interval(int("[9,9]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[3,3]"))),
+                ("d".to_owned(), Output::Interval(int("[5,5]"))),
+                ("e".to_owned(), Output::Interval(int("[9,9]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[4,4]"))),
+                ("d".to_owned(), Output::Interval(int("[5,5]"))),
+                ("e".to_owned(), Output::Interval(int("[9,9]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[2,2]"))),
+                ("d".to_owned(), Output::Interval(int("[6,6]"))),
+                ("e".to_owned(), Output::Interval(int("[9,9]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[3,3]"))),
+                ("d".to_owned(), Output::Interval(int("[6,6]"))),
+                ("e".to_owned(), Output::Interval(int("[9,9]"))),
+            ]),
+            HashMap::from([
+                ("a".to_owned(), Output::Interval(int("[1,1]"))),
+                ("b".to_owned(), Output::Bool(true)),
+                ("c".to_owned(), Output::Interval(int("[4,4]"))),
+                ("d".to_owned(), Output::Interval(int("[6,6]"))),
+                ("e".to_owned(), Output::Interval(int("[9,9]"))),
+            ]),
+        ];
+
+        let result = ntuple_multi_cartesian_product(&input);
+
+        // println!("Result:");
+        // for r in result.iter() {
+        //     print!("[");
+        //     for (k, v) in r.iter().sorted_by_key(|(k, _)| k.to_owned()) {
+        //         print!(
+        //             "{} ",
+        //             match v {
+        //                 Output::Interval(i) => i.lo.to_string(),
+        //                 Output::Bool(b) => b.to_string(),
+        //                 Output::MissingVariable => "*".to_owned(),
+        //             }
+        //         );
+        //     }
+        //     println!("]");
+        // }
+
+        // println!("Expected:");
+        // for r in expected.iter() {
+        //     print!("[");
+        //     for (k, v) in r.iter().sorted_by_key(|(k, _)| k.to_owned()) {
+        //         print!(
+        //             "{} ",
+        //             match v {
+        //                 Output::Interval(i) => i.lo.to_string(),
+        //                 Output::Bool(b) => b.to_string(),
+        //                 Output::MissingVariable => "*".to_owned(),
+        //             }
+        //         );
+        //     }
+        //     println!("]");
+        // }
+
+        assert_eq!(result.len(), expected.len());
+        assert!(result.iter().all(|x| expected.contains(x)));
+        assert!(expected.iter().all(|x| result.contains(x)));
+    }
 
     #[test]
     fn test_generate_test_cases_for_inputs() {
         // true;   <50; *
         let inputs = create_ntuple_input(vec![
             (
-                "x".to_owned(),
+                "x",
                 Input::Bool(BoolDTO {
                     expression: BoolExpression::IsTrue,
                     bool_val: true,
@@ -450,64 +433,68 @@ mod tests {
                 }),
             ),
             (
-                "y".to_owned(),
+                "y",
                 Input::Interval(IntervalDTO {
                     expression: Expression::LessThan,
-                    interval: Interval::new(
-                        Boundary::Open,
-                        f32::NEG_INFINITY,
-                        50.0,
-                        Boundary::Open,
-                    )
-                    .unwrap(),
+                    interval: MultiInterval::new(Open, f32::NEG_INFINITY, 50.0, Open).unwrap(),
                     precision: 0.01,
                     is_constant: false,
                 }),
             ),
         ]);
 
-        let expected = vec![
-            create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(true)),
+        let expected: Vec<NTupleSingleInterval> = vec![
+            // in
+            create_ntuple_single_interval(vec![
+                ("x", Output::Bool(true)),
                 (
-                    "y".to_owned(),
-                    Output::Interval(Interval::new_closed(f32::NEG_INFINITY, 49.98).unwrap()),
-                ),
-            ]),
-            create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(true)),
-                (
-                    "y".to_owned(),
-                    Output::Interval(Interval::new_closed_point(49.99)),
-                ),
-            ]),
-            create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(false)),
-                (
-                    "y".to_owned(),
+                    "y",
                     Output::Interval(Interval::new_closed(f32::NEG_INFINITY, 49.99).unwrap()),
                 ),
             ]),
-            create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(true)),
+            // on
+            create_ntuple_single_interval(vec![
+                ("x", Output::Bool(true)),
+                ("y", Output::Interval(Interval::new_closed_point(49.99))),
+            ]),
+            // inin
+            create_ntuple_single_interval(vec![
+                ("x", Output::Bool(true)),
                 (
-                    "y".to_owned(),
+                    "y",
+                    Output::Interval(Interval::new_closed(f32::NEG_INFINITY, 49.98).unwrap()),
+                ),
+            ]),
+            // Bool False
+            create_ntuple_single_interval(vec![
+                ("x", Output::Bool(false)),
+                (
+                    "y",
+                    Output::Interval(Interval::new_closed(f32::NEG_INFINITY, 49.99).unwrap()),
+                ),
+            ]),
+            // Out
+            create_ntuple_single_interval(vec![
+                ("x", Output::Bool(true)),
+                (
+                    "y",
                     Output::Interval(Interval::new_closed(50.01, f32::INFINITY).unwrap()),
                 ),
             ]),
-            create_ntuple_output(vec![
-                ("x".to_owned(), Output::Bool(true)),
-                (
-                    "y".to_owned(),
-                    Output::Interval(Interval::new_closed_point(50.0)),
-                ),
+            // Off
+            create_ntuple_single_interval(vec![
+                ("x", Output::Bool(true)),
+                ("y", Output::Interval(Interval::new_closed_point(50.0))),
             ]),
         ];
 
-        let result = generate_test_cases_for_inputs(&inputs).unwrap();
+        let result = generate_test_cases_for_inputs(&inputs);
+
+        // println!("Expected: {:#?}", expected);
+        // println!("Result: {:#?}", result);
 
         assert_eq!(result.len(), expected.len());
-        assert!(result.iter().all(|x| expected.contains(&x)));
-        assert!(expected.iter().all(|x| result.contains(&x)));
+        assert!(result.iter().all(|x| expected.contains(x)));
+        assert!(expected.iter().all(|x| result.contains(x)));
     }
 }

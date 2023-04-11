@@ -1,5 +1,5 @@
 use gpt_common::{
-    dto::NTupleOutput,
+    dto::{NTupleOutput, NTupleSingleInterval},
     generate_tests_for_gpt_input,
     graph_reduction::{
         create_graph, least_losing_nodes_reachable::run_least_losing_edges_reachable,
@@ -39,7 +39,7 @@ pub fn manual_tester() -> Html {
     "#
         .to_owned()
     });
-    let generated_state = use_state(|| Some(Ok(Vec::<NTupleOutput>::new())));
+    let generated_state = use_state(|| Some(Ok(Vec::<NTupleSingleInterval>::new())));
 
     let toggle_button_onclick = {
         let is_loading = is_loading.clone();
@@ -73,9 +73,10 @@ pub fn manual_tester() -> Html {
                     let reduced_test_cases = reduced_graph
                         .node_weights()
                         .cloned()
-                        .collect::<Vec<NTupleOutput>>();
+                        .collect::<Vec<NTupleSingleInterval>>();
 
-                    generated_state.set(Some(Ok(reduced_test_cases)));
+                    // generated_state.set(Some(Ok(reduced_test_cases)));
+                    generated_state.set(Some(Ok(test_cases)));
                 }
                 Err(err) => {
                     log::error!("Error: {}", err);

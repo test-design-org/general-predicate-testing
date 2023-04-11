@@ -6,13 +6,10 @@
     clippy::cargo
 )]
 
-use crate::test_case_generator::generate_test_cases_for_multiple_features;
-
-pub mod dto;
-pub mod interval;
-pub mod parser;
-mod test_case_generator;
-mod util;
+use gpt_common::dto::NTupleSingleInterval;
+use gpt_common::graph_reduction::{create_graph, MONKE::run_MONKE};
+use gpt_common::parser;
+use gpt_common::test_case_generator::generate_test_cases_for_multiple_features;
 
 pub fn main() {
     let input1 = r#"
@@ -47,9 +44,20 @@ pub fn main() {
     ]
     "#;
 
-    let (_, features) = parser::parse_gpt_to_features(input2).unwrap();
+    let (_, features) = parser::parse_gpt_to_features(input1).unwrap();
     let test_cases = generate_test_cases_for_multiple_features(&features).unwrap();
 
     println!("{:#?}", test_cases);
     println!("Number of test cases: {}", test_cases.len());
+
+    let ntuple_graph = create_graph(&test_cases);
+    let monked_graph = run_MONKE(&ntuple_graph);
+    let monked_test_cases = monked_graph
+        .node_weights()
+        .cloned()
+        .collect::<Vec<NTupleSingleInterval>>();
+
+    println!("After running MONKE:");
+    println!("{:#?}", monked_test_cases);
+    println!("Number of test cases: {}", monked_test_cases.len());
 }

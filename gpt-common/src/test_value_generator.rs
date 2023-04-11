@@ -1,6 +1,23 @@
-use crate::dto::Output;
+use crate::{
+    dto::Output,
+    interval::{self, Interval, MultiInterval},
+};
 
-pub fn generate_test_value(output: &Output, show_interval_values: bool) -> String {
+fn test_value_for_interval(interval: &Interval) -> Option<f32> {
+    if interval.is_empty() {
+        None
+    } else {
+        Some(match (interval.lo, interval.hi) {
+            (f32::NEG_INFINITY, f32::INFINITY) => 0.0,
+            (f32::NEG_INFINITY, x) => x,
+            (x, f32::INFINITY) => x,
+            (x, _) => x,
+        })
+    }
+}
+
+// TODO: There should be a value which returns the whole test case table
+pub fn generate_test_value(output: &Output<Interval>, show_interval_values: bool) -> String {
     match output {
         Output::MissingVariable => "*".to_owned(),
         Output::Bool(bool_val) => {
@@ -14,9 +31,11 @@ pub fn generate_test_value(output: &Output, show_interval_values: bool) -> Strin
             if show_interval_values {
                 format!("{:?}", interval)
             } else {
-                // TODO: if this is an open interval then this should be one step above. Although GPT works with closed intervals so dunno
-                // Also, if the lo / high is -Inf or Inf we should still return a concrete value
-                format!("{:?}", interval.lo)
+                format!(
+                    "{:?}",
+                    test_value_for_interval(interval)
+                        .expect("NTupleSingleInterval should not be empty, it was checked before")
+                )
             }
         }
     }

@@ -1,13 +1,16 @@
 use petgraph::{algo::connected_components, prelude::UnGraph};
 
-use crate::{dto::NTupleOutput, graph_reduction::create_graph_url};
+use crate::{
+    dto::{NTupleOutput, NTupleSingleInterval},
+    graph_reduction::create_graph_url,
+};
 
 use super::{
     common::{clone_with_different_edge_type, join_nodes_on_edge},
     NTupleGraph,
 };
 
-fn evaluate_edges_component_count(graph: &mut UnGraph<NTupleOutput, usize>) {
+fn evaluate_edges_component_count(graph: &mut UnGraph<NTupleSingleInterval, usize>) {
     let initial_component_count = connected_components(&*graph);
     for edge_index in graph.edge_indices() {
         let mut working_graph = graph.clone();
@@ -28,7 +31,7 @@ fn evaluate_edges_component_count(graph: &mut UnGraph<NTupleOutput, usize>) {
 }
 
 pub fn run_least_losing_components(graph: &NTupleGraph) -> NTupleGraph {
-    let mut graph: UnGraph<NTupleOutput, usize> = clone_with_different_edge_type(graph);
+    let mut graph: UnGraph<NTupleSingleInterval, usize> = clone_with_different_edge_type(graph);
 
     while graph.edge_count() > 0 {
         evaluate_edges_component_count(&mut graph);

@@ -1,12 +1,12 @@
 use petgraph::{prelude::NodeIndex, prelude::UnGraph};
 
-use crate::{dto::NTupleOutput, interval::Intersectable};
+use crate::{dto::NTupleSingleInterval, interval::Intersectable};
 
 pub fn replace_nodes<T>(
-    graph: &mut UnGraph<NTupleOutput, T>,
+    graph: &mut UnGraph<NTupleSingleInterval, T>,
     a: NodeIndex,
     b: NodeIndex,
-    new_ntuple: NTupleOutput,
+    new_ntuple: NTupleSingleInterval,
 ) -> NodeIndex
 where
     T: Default + Clone,
@@ -37,7 +37,7 @@ where
 }
 
 pub fn join_nodes_on_edge<T>(
-    graph: &mut UnGraph<NTupleOutput, T>,
+    graph: &mut UnGraph<NTupleSingleInterval, T>,
     a: NodeIndex,
     b: NodeIndex,
 ) -> NodeIndex
