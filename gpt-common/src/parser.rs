@@ -99,7 +99,7 @@ fn eq_op(input: &str) -> IResult<EqOp> {
     context(
         "Equality operator",
         map_res(alt((tag("="), tag("!="))), |x| match x {
-            "=" => Ok(EqOp::Equal),
+            "=" => Ok(EqOp::Equal), // TODO: This should be ==
             "!=" => Ok(EqOp::NotEqual),
             &_ => Err(()),
         }),
@@ -506,6 +506,7 @@ fn feature(input: &str) -> IResult<FeatureNode> {
 
 fn root(input: &str) -> IResult<RootNode> {
     let (input, _) = whitespace(input)?;
+    // TODO: top level could be a  list fo features not delimited by []
     let (input, features) = many0(terminated(feature, whitespace))(input)?;
     let (input, _) = eof(input)?;
 

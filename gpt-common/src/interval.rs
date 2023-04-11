@@ -136,8 +136,18 @@ impl Intersectable for Interval {
             return None;
         }
 
-        let bigger_lo = if self.lo > other.lo { self } else { other };
-        let smaller_hi = if self.hi < other.hi { self } else { other };
+        // let bigger_lo = if self.lo > other.lo { self } else { other };
+        // let smaller_hi = if self.hi < other.hi { self } else { other };
+        let bigger_lo = if self.lo_cmp(other) == Ordering::Greater {
+            self
+        } else {
+            other
+        };
+        let smaller_hi = if self.hi_cmp(other) == Ordering::Less {
+            self
+        } else {
+            other
+        };
 
         Some(Self {
             lo_boundary: bigger_lo.lo_boundary,
@@ -398,12 +408,7 @@ impl Unionable<Self, Self> for MultiInterval {
 
 impl Unionable<Self, MultiInterval> for Interval {
     fn union(&self, other: &Self) -> MultiInterval {
-        let mut multi_interval = MultiInterval {
-            intervals: vec![*self, *other],
-        };
-        multi_interval.clean();
-
-        multi_interval
+        MultiInterval::from_intervals(vec![*self, *other])
     }
 }
 
@@ -507,7 +512,18 @@ pub(crate) mod test {
     #[case("[0, 10)", "[20, 30]", false)]
     #[case("[0, 10]", "(20, 30]", false)]
     #[case("[0, 10)", "(20, 30]", false)]
+    // self.lo == other.lo
+    #[case("[0, 10]", "[0, 20]", true)]
+    #[case("[0, 10]", "(0, 20]", true)]
+    #[case("(0, 10]", "[0, 20]", true)]
+    #[case("(0, 10]", "(0, 20]", true)]
+    // self.hi == other.hi
+    #[case("[10, 20]", "[0, 20]", true)]
+    #[case("[10, 20)", "[0, 20]", true)]
+    #[case("[10, 20]", "[0, 20)", true)]
+    #[case("[10, 20)", "[0, 20)", true)]
     // TODO: Inf, -Inf
+    // TODO: What about empty intervals like (0,0) (0,0)?
     fn test_interval_intersects_with(
         #[case] this: Interval,
         #[case] that: Interval,
@@ -561,7 +577,18 @@ pub(crate) mod test {
     #[case("[0, 10)", "[20, 30]", None)]
     #[case("[0, 10]", "(20, 30]", None)]
     #[case("[0, 10)", "(20, 30]", None)]
+    // self.lo == other.lo
+    #[case("[0, 10]", "[0, 20]", Some("[0, 10]"))]
+    #[case("[0, 10]", "(0, 20]", Some("(0, 10]"))]
+    #[case("(0, 10]", "[0, 20]", Some("(0, 10]"))]
+    #[case("(0, 10]", "(0, 20]", Some("(0, 10]"))]
+    // self.hi == other.hi
+    #[case("[10, 20]", "[0, 20]", Some("[10, 20]"))]
+    #[case("[10, 20)", "[0, 20]", Some("[10, 20)"))]
+    #[case("[10, 20]", "[0, 20)", Some("[10, 20)"))]
+    #[case("[10, 20)", "[0, 20)", Some("[10, 20)"))]
     // TODO: Inf, -Inf
+    // TODO: What about empty intervals like (0,0) (0,0)?
     fn test_interval_intersect(
         #[case] this: Interval,
         #[case] that: Interval,

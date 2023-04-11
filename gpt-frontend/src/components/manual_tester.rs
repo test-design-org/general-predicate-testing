@@ -75,8 +75,8 @@ pub fn manual_tester() -> Html {
                         .cloned()
                         .collect::<Vec<NTupleSingleInterval>>();
 
-                    // generated_state.set(Some(Ok(reduced_test_cases)));
-                    generated_state.set(Some(Ok(test_cases)));
+                    generated_state.set(Some(Ok(reduced_test_cases)));
+                    // generated_state.set(Some(Ok(test_cases)));
                 }
                 Err(err) => {
                     log::error!("Error: {}", err);

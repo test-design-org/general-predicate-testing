@@ -225,6 +225,7 @@ fn off_out(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
 
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
     use pretty_assertions::assert_eq;
     use std::collections::HashMap;
 
@@ -390,7 +391,7 @@ mod tests {
         //         print!(
         //             "{} ",
         //             match v {
-        //                 Output::Interval(i) => i.lo.to_string(),
+        //                 Output::Interval(i) => format!("{:?}", i),
         //                 Output::Bool(b) => b.to_string(),
         //                 Output::MissingVariable => "*".to_owned(),
         //             }

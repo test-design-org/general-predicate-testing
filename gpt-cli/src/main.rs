@@ -39,7 +39,6 @@ pub fn main() {
         var is_copper_melted: bool
         var tin: num
         var is_contaminated: bool
-
         if(is_contaminated = false && is_copper_melted = true && tin = 2.2)
     ]
     "#;
