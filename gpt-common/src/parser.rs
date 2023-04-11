@@ -467,7 +467,7 @@ fn var_declaration(input: &str) -> IResult<VarNode> {
     })(input)
 }
 
-fn feature(input: &str) -> IResult<FeatureNode> {
+fn feature_body(input: &str) -> IResult<FeatureNode> {
     enum VarOrIf<'a> {
         Var(VarNode<'a>),
         If(IfNode<'a>),
@@ -480,9 +480,7 @@ fn feature(input: &str) -> IResult<FeatureNode> {
         ))(input)
     }
 
-    let (input, _) = terminated(tag("["), whitespace)(input)?;
-    let (input, nodes) = cut(many1(var_or_if))(input)?;
-    let (input, _) = cut(terminated(tag("]"), whitespace))(input)?;
+    let (input, nodes) = many1(var_or_if)(input)?;
 
     let (variables, if_statements) = nodes.into_iter().fold(
         (Vec::new(), Vec::new()),
@@ -504,10 +502,26 @@ fn feature(input: &str) -> IResult<FeatureNode> {
     ))
 }
 
+fn feature(input: &str) -> IResult<FeatureNode> {
+    let (input, _) = terminated(tag("["), whitespace)(input)?;
+    let (input, feature_node) = cut(feature_body)(input)?;
+    let (input, _) = cut(terminated(tag("]"), whitespace))(input)?;
+
+    Ok((input, feature_node))
+}
+
 fn root(input: &str) -> IResult<RootNode> {
     let (input, _) = whitespace(input)?;
-    // TODO: top level could be a  list fo features not delimited by []
-    let (input, features) = many0(terminated(feature, whitespace))(input)?;
+
+    // Accept empty files as input
+    if eof::<&str, VerboseError<&str>>(input).is_ok() {
+        return Ok((input, RootNode { features: vec![] }));
+    }
+
+    let (input, features) = alt((
+        many1(terminated(feature, whitespace)), // Either a list of HGPT features
+        map(terminated(feature_body, whitespace), |x| vec![x]), // Or a sungle feature without the brackets
+    ))(input)?;
     let (input, _) = eof(input)?;
 
     Ok((input, RootNode { features }))
