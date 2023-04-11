@@ -87,94 +87,66 @@ fn number(input: &str) -> IResult<f32> {
 fn boolean(input: &str) -> IResult<bool> {
     context(
         "boolean",
-        map_res(alt((tag("true"), tag("false"))), |x| match x {
-            "true" => Ok(true),
-            "false" => Ok(false),
-            &_ => Err(()),
-        }),
+        alt((value(true, tag("true")), value(false, tag("false")))),
     )(input)
 }
 
 fn eq_op(input: &str) -> IResult<EqOp> {
     context(
         "Equality operator",
-        map_res(alt((tag("="), tag("!="))), |x| match x {
-            "=" => Ok(EqOp::Equal), // TODO: This should be ==
-            "!=" => Ok(EqOp::NotEqual),
-            &_ => Err(()),
-        }),
+        alt((
+            value(EqOp::Equal, tag("==")),
+            value(EqOp::NotEqual, tag("!=")),
+        )),
     )(input)
 }
 
 fn interval_op(input: &str) -> IResult<IntervalOp> {
     context(
         "Interval Operator",
-        map_res(alt((tag("in"), tag("not in"))), |x| match x {
-            "in" => Ok(IntervalOp::In),
-            "not in" => Ok(IntervalOp::NotIn),
-            &_ => Err(()),
-        }),
+        alt((
+            value(IntervalOp::In, tag("in")),
+            value(IntervalOp::NotIn, tag("not in")),
+        )),
     )(input)
 }
 
 fn binary_op(input: &str) -> IResult<BinaryOp> {
     context(
         "Binary Operator",
-        map_res(
-            alt((
-                tag("<="),
-                tag(">="),
-                tag("!="),
-                tag("<"),
-                tag(">"),
-                tag("="),
-            )),
-            |x| match x {
-                "<=" => Ok(BinaryOp::LessThanEqualTo),
-                ">=" => Ok(BinaryOp::GreaterThanEqualTo),
-                "!=" => Ok(BinaryOp::NotEqual),
-                "<" => Ok(BinaryOp::LessThan),
-                ">" => Ok(BinaryOp::GreaterThan),
-                "=" => Ok(BinaryOp::Equal),
-                &_ => Err(()),
-            },
-        ),
+        alt((
+            value(BinaryOp::LessThanEqualTo, tag("<=")),
+            value(BinaryOp::GreaterThanEqualTo, tag(">=")),
+            value(BinaryOp::NotEqual, tag("!=")),
+            value(BinaryOp::LessThan, tag("<")),
+            value(BinaryOp::GreaterThan, tag(">")),
+            value(BinaryOp::Equal, tag("==")),
+        )),
     )(input)
 }
 
 fn bool_op(input: &str) -> IResult<BoolOp> {
     context(
         "Boolean Operator",
-        map_res(
-            alt((
-                tag("&&"),
-                // tag("||"),
-            )),
-            |x| {
-                match x {
-                    "&&" => Ok(BoolOp::And),
-                    // "||" => BoolOp::Or,
-                    &_ => Err(()),
-                }
-            },
-        ),
+        alt((
+            value(BoolOp::And, tag("&&")),
+            // tag("||"),
+        )),
     )(input)
 }
 
 fn parse_lo_openness(input: &str) -> IResult<Boundary> {
-    map_res(alt((char('('), char('['))), |left_brace| match left_brace {
-        '(' => Ok(Boundary::Open),
-        '[' => Ok(Boundary::Closed),
-        _ => Err(()),
-    })(input)
+    alt((
+        value(Boundary::Open, char('(')),
+        value(Boundary::Closed, char('[')),
+    ))(input)
 }
 
 fn parse_hi_openness(input: &str) -> IResult<Boundary> {
-    map_res(alt((char(')'), char(']'))), |left_brace| match left_brace {
-        ')' => Ok(Boundary::Open),
-        ']' => Ok(Boundary::Closed),
-        _ => Err(()),
-    })(input)
+    alt((
+        value(Boundary::Open, char(')')),
+        value(Boundary::Closed, char(']')),
+    ))(input)
 }
 
 pub fn interval(input: &str) -> IResult<MultiInterval> {
@@ -610,7 +582,7 @@ mod tests {
 
     #[test]
     fn test_eq_op() {
-        assert_eq!(eq_op("="), Ok(("", EqOp::Equal)));
+        assert_eq!(eq_op("=="), Ok(("", EqOp::Equal)));
         assert_eq!(eq_op("!="), Ok(("", EqOp::NotEqual)));
         assert!(eq_op("other").is_err());
     }
@@ -627,7 +599,7 @@ mod tests {
         assert_eq!(binary_op("<="), Ok(("", BinaryOp::LessThanEqualTo)));
         assert_eq!(binary_op(">="), Ok(("", BinaryOp::GreaterThanEqualTo)));
         assert_eq!(binary_op("!="), Ok(("", BinaryOp::NotEqual)));
-        assert_eq!(binary_op("="), Ok(("", BinaryOp::Equal)));
+        assert_eq!(binary_op("=="), Ok(("", BinaryOp::Equal)));
         assert_eq!(binary_op("<"), Ok(("", BinaryOp::LessThan)));
         assert_eq!(binary_op(">"), Ok(("", BinaryOp::GreaterThan)));
         assert!(binary_op("other").is_err());
@@ -698,7 +670,7 @@ mod tests {
     #[test]
     fn test_condition_bool_lhs() {
         assert_eq!(
-            condition_bool_lhs("true = x"),
+            condition_bool_lhs("true == x"),
             Ok((
                 "",
                 Condition::Bool(BoolCondition {
@@ -709,7 +681,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            condition_bool_lhs("false=foo"),
+            condition_bool_lhs("false==foo"),
             Ok((
                 "",
                 Condition::Bool(BoolCondition {
@@ -731,7 +703,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            condition_bool_lhs("true   =   y) asd"),
+            condition_bool_lhs("true   ==   y) asd"),
             Ok((
                 ") asd",
                 Condition::Bool(BoolCondition {
@@ -743,16 +715,16 @@ mod tests {
         );
         assert!(condition_bool_lhs("9asd").is_err());
         assert!(condition_bool_lhs("y not foo").is_err());
-        assert!(condition_bool_lhs("false = false").is_err());
-        assert!(condition_bool_lhs("true = true").is_err());
-        assert!(condition_bool_lhs("x = true").is_err());
-        assert!(condition_bool_lhs("false =").is_err());
+        assert!(condition_bool_lhs("false == false").is_err());
+        assert!(condition_bool_lhs("true == true").is_err());
+        assert!(condition_bool_lhs("x == true").is_err());
+        assert!(condition_bool_lhs("false ==").is_err());
     }
 
     #[test]
     fn test_condition_bool_rhs() {
         assert_eq!(
-            condition_bool_rhs("x = true"),
+            condition_bool_rhs("x == true"),
             Ok((
                 "",
                 Condition::Bool(BoolCondition {
@@ -763,7 +735,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            condition_bool_rhs("foo=false"),
+            condition_bool_rhs("foo==false"),
             Ok((
                 "",
                 Condition::Bool(BoolCondition {
@@ -785,7 +757,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            condition_bool_rhs("y   =   true) asd"),
+            condition_bool_rhs("y   ==   true) asd"),
             Ok((
                 ") asd",
                 Condition::Bool(BoolCondition {
@@ -797,16 +769,16 @@ mod tests {
         );
         assert!(condition_bool_rhs("9asd").is_err());
         assert!(condition_bool_rhs("y not foo").is_err());
-        assert!(condition_bool_rhs("false = false").is_err());
-        assert!(condition_bool_rhs("true = true").is_err());
-        assert!(condition_bool_rhs("true = x").is_err());
-        assert!(condition_bool_rhs("x =").is_err());
+        assert!(condition_bool_rhs("false == false").is_err());
+        assert!(condition_bool_rhs("true == true").is_err());
+        assert!(condition_bool_rhs("true == x").is_err());
+        assert!(condition_bool_rhs("x ==").is_err());
     }
 
     #[test]
     fn test_condition_binary_lhs() {
         assert_eq!(
-            condition_binary_lhs("10.32 = x"),
+            condition_binary_lhs("10.32 == x"),
             Ok((
                 "",
                 Condition::Binary(BinaryCondition {
@@ -843,16 +815,16 @@ mod tests {
         );
         assert!(condition_binary_lhs("9asd").is_err());
         assert!(condition_binary_lhs("y not foo").is_err());
-        assert!(condition_binary_lhs("x = 123.0").is_err());
-        assert!(condition_binary_lhs("true = x").is_err());
-        assert!(condition_binary_lhs("123 = 123").is_err());
+        assert!(condition_binary_lhs("x == 123.0").is_err());
+        assert!(condition_binary_lhs("true == x").is_err());
+        assert!(condition_binary_lhs("123 == 123").is_err());
         assert!(condition_binary_lhs("123.0 >=").is_err());
     }
 
     #[test]
     fn test_condition_binary_rhs() {
         assert_eq!(
-            condition_binary_rhs("x = 10.32"),
+            condition_binary_rhs("x == 10.32"),
             Ok((
                 "",
                 Condition::Binary(BinaryCondition {
@@ -889,9 +861,9 @@ mod tests {
         );
         assert!(condition_binary_rhs("9asd").is_err());
         assert!(condition_binary_rhs("y not foo").is_err());
-        assert!(condition_binary_rhs("123.0 = x").is_err());
-        assert!(condition_binary_rhs("x = true").is_err());
-        assert!(condition_binary_rhs("123 = 123").is_err());
+        assert!(condition_binary_rhs("123.0 == x").is_err());
+        assert!(condition_binary_rhs("x == true").is_err());
+        assert!(condition_binary_rhs("123 == 123").is_err());
         assert!(condition_binary_rhs("x >=").is_err());
     }
 
@@ -943,7 +915,7 @@ mod tests {
     #[test]
     fn test_condition() {
         assert_eq!(
-            condition("true = x"),
+            condition("true == x"),
             Ok((
                 "",
                 Condition::Bool(BoolCondition {
@@ -954,7 +926,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            condition("x = true"),
+            condition("x == true"),
             Ok((
                 "",
                 Condition::Bool(BoolCondition {
@@ -965,7 +937,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            condition("10.32 = x"),
+            condition("10.32 == x"),
             Ok((
                 "",
                 Condition::Binary(BinaryCondition {
@@ -977,7 +949,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            condition("x = 10.32"),
+            condition("x == 10.32"),
             Ok((
                 "",
                 Condition::Binary(BinaryCondition {
@@ -1018,7 +990,7 @@ mod tests {
         });
 
         assert_eq!(
-            conditions("true = x"),
+            conditions("true == x"),
             Ok((
                 "",
                 ConditionsNode {
@@ -1027,7 +999,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            conditions("true = x && 0 > y"),
+            conditions("true == x && 0 > y"),
             Ok((
                 "",
                 ConditionsNode {
@@ -1036,7 +1008,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            conditions("true = x && 0 > y && 0 > y    asd"),
+            conditions("true == x && 0 > y && 0 > y    asd"),
             Ok((
                 "asd",
                 ConditionsNode {
@@ -1045,7 +1017,7 @@ mod tests {
             ))
         );
         assert!(conditions("").is_err());
-        assert!(conditions("true = x &&").is_err());
+        assert!(conditions("true == x &&").is_err());
     }
 
     #[test]
@@ -1054,7 +1026,7 @@ mod tests {
             if_statement(
                 "
             if (x >= 5 && y in (0, 10)) {
-                if (x = true)
+                if (x == true)
             } else if (x < 4 && y > 6)
             else {
                 if (x != false)
@@ -1067,7 +1039,7 @@ mod tests {
                 IfNode {
                     conditions: conditions("x >= 5 && y in (0, 10)").unwrap().1,
                     body: Some(vec![IfNode {
-                        conditions: conditions("x = true").unwrap().1,
+                        conditions: conditions("x == true").unwrap().1,
                         body: None,
                         else_if: None,
                         else_node: None
@@ -1111,7 +1083,7 @@ mod tests {
             var price: num
             var second_hand_price: num
           
-            if(VIP = true && price < 50 && price != 0) {
+            if(VIP == true && price < 50 && price != 0) {
               if(price < 20 && second_hand_price > 60)
               if(price != 50)
             }
@@ -1119,9 +1091,9 @@ mod tests {
           
             if(price > 30 && second_hand_price > 60)
           
-            if(VIP = true) {
-              if(second_hand_price = 2)
-              if(second_hand_price = 3)
+            if(VIP == true) {
+              if(second_hand_price == 2)
+              if(second_hand_price == 3)
             }
           
             if(second_hand_price >= 50) {
@@ -1131,17 +1103,17 @@ mod tests {
           
             if(price in [0,10] && price not in (9,100])
           
-            if(VIP = true && price < 10) {
-              if(second_hand_price = 2)
-              if(second_hand_price = 3)
+            if(VIP == true && price < 10) {
+              if(second_hand_price == 2)
+              if(second_hand_price == 3)
             }
-            if(VIP = true) {
-              if(second_hand_price = 2)
-              if(second_hand_price = 3)
+            if(VIP == true) {
+              if(second_hand_price == 2)
+              if(second_hand_price == 3)
             }
             if(price < 10) {
-              if(second_hand_price = 2)
-              if(second_hand_price = 3)
+              if(second_hand_price == 2)
+              if(second_hand_price == 3)
             }
           
           

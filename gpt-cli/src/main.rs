@@ -17,12 +17,12 @@ pub fn main() {
         var price: num
         var second_hand_price: num
 
-        if(VIP = true &&  price <50) {
-            if(second_hand_price = 2)
+        if(VIP == true &&  price < 50) {
+            if(second_hand_price == 2)
         }
-        if(VIP = false &&  price >=50)
-        if(VIP = true &&  price >=50)
-        if(price >30 && second_hand_price >60)
+        if(VIP == false &&  price >= 50)
+        if(VIP == true &&  price >= 50)
+        if(price > 30 && second_hand_price > 60)
     "#;
 
     let input2 = r#"
@@ -31,17 +31,17 @@ pub fn main() {
         var is_contaminated: bool
         var copper: num
 
-        if(heat in [2600,2650] && is_contaminated = false && copper = 8.8)
+        if(heat in [2600,2650] && is_contaminated == false && copper == 8.8)
     ]
     [
         var is_copper_melted: bool
         var tin: num
         var is_contaminated: bool
-        if(is_contaminated = false && is_copper_melted = true && tin = 2.2)
+        if(is_contaminated == false && is_copper_melted == true && tin == 2.2)
     ]
     "#;
 
-    let test_cases = match generate_tests_for_gpt_input(input1) {
+    let test_cases = match generate_tests_for_gpt_input(input2) {
         Ok(test_cases) => test_cases,
         Err(e) => panic!("Error: {}", e),
     };
