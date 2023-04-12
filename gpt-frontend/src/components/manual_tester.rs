@@ -22,20 +22,20 @@ pub fn manual_tester() -> Html {
     let is_help_hidden = use_state(|| true);
     let input = use_state(|| {
         r#"
-    [
-        var heat: int
-        var is_contaminated: bool
-        var copper: num
+[
+  var heat: int
+  var is_contaminated: bool
+  var copper: num
 
-        if(heat in [2600,2650] && is_contaminated = false && copper = 8.8)
-    ]
-    [
-        var is_copper_melted: bool
-        var tin: num
-        var is_contaminated: bool
+  if(heat in [2600,2650] && is_contaminated == false && copper == 8.8)
+]
+[
+  var is_copper_melted: bool
+  var tin: num
+  var is_contaminated: bool
 
-        if(is_contaminated = false && is_copper_melted = true && tin = 2.2)
-    ]
+  if(is_contaminated == false && is_copper_melted == true && tin == 2.2)
+]
     "#
         .to_owned()
     });
@@ -56,16 +56,16 @@ pub fn manual_tester() -> Html {
                     log::info!("Original count: {}", graph.node_count());
                     let reduced_graph = run_MONKE(&graph);
                     log::info!("MONKE count: {}", reduced_graph.node_count());
-                    let reduced_graph = run_least_losing_components(&graph);
-                    log::info!(
-                        "Least Losing Components count: {}",
-                        reduced_graph.node_count()
-                    );
-                    let reduced_graph = run_least_losing_edges_reachable(&graph);
-                    log::info!(
-                        "Least Losing Edges Reachable count: {}",
-                        reduced_graph.node_count()
-                    );
+                    // let reduced_graph = run_least_losing_components(&graph);
+                    // log::info!(
+                    //     "Least Losing Components count: {}",
+                    //     reduced_graph.node_count()
+                    // );
+                    // let reduced_graph = run_least_losing_edges_reachable(&graph);
+                    // log::info!(
+                    //     "Least Losing Edges Reachable count: {}",
+                    //     reduced_graph.node_count()
+                    // );
 
                     log::debug!("{}", create_graph_url(&graph));
                     log::debug!("{}", create_graph_url(&reduced_graph));

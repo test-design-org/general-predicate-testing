@@ -326,34 +326,24 @@ fn raw_expression(input: &str) -> IResult<ConditionsNode> {
     Ok((input, ConditionsNode::Expression(condition)))
 }
 
-fn expression(input: &str) -> IResult<ConditionsNode> {
-    alt((parenthesized(conditions), raw_expression))(input)
+fn negated(input: &str) -> IResult<ConditionsNode> {
+    let (input, _) = terminated(char('!'), whitespace)(input)?;
+    let (input, node) = parenthesized(conditions)(input)?;
+
+    Ok((input, ConditionsNode::Negated(Box::new(node))))
 }
 
-fn or_condition(input: &str) -> IResult<ConditionsNode> {
-    alt((
-        |input| {
-            let (input, left) = expression(input)?;
-            let (input, op) = terminated(value(BoolOp::Or, tag("||")), whitespace)(input)?;
-            let (input, right) = or_condition(input)?;
-
-            Ok((
-                input,
-                ConditionsNode::Group {
-                    left: Box::new(left),
-                    right: Box::new(right),
-                    operator: op,
-                },
-            ))
-        },
-        expression,
-    ))(input)
+fn expression(input: &str) -> IResult<ConditionsNode> {
+    context(
+        "expression",
+        alt((negated, parenthesized(conditions), cut(raw_expression))),
+    )(input)
 }
 
 fn and_condition(input: &str) -> IResult<ConditionsNode> {
     alt((
         |input| {
-            let (input, left) = or_condition(input)?;
+            let (input, left) = expression(input)?;
             let (input, op) = terminated(value(BoolOp::And, tag("&&")), whitespace)(input)?;
             let (input, right) = and_condition(input)?;
 
@@ -366,13 +356,33 @@ fn and_condition(input: &str) -> IResult<ConditionsNode> {
                 },
             ))
         },
-        or_condition,
+        expression,
+    ))(input)
+}
+
+fn or_condition(input: &str) -> IResult<ConditionsNode> {
+    alt((
+        |input| {
+            let (input, left) = and_condition(input)?;
+            let (input, op) = terminated(value(BoolOp::Or, tag("||")), whitespace)(input)?;
+            let (input, right) = or_condition(input)?;
+
+            Ok((
+                input,
+                ConditionsNode::Group {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    operator: op,
+                },
+            ))
+        },
+        and_condition,
         expression,
     ))(input)
 }
 
 fn conditions(input: &str) -> IResult<ConditionsNode> {
-    context("conditions", alt((and_condition, or_condition, expression)))(input)
+    context("conditions", alt((or_condition, and_condition, expression)))(input)
 }
 
 fn if_statement(input: &str) -> IResult<IfNode> {
@@ -390,13 +400,14 @@ fn if_statement(input: &str) -> IResult<IfNode> {
                 )),
                 |(_, body, _)| body,
             ))(input)?;
+            // TODO: would a many0 work here? It'd be better
             let (input, else_if_statements) = opt(many1(else_if_statement))(input)?;
             let (input, else_statement) = opt(else_statement)(input)?;
 
             let if_node = IfNode {
                 body,
                 conditions,
-                else_if: else_if_statements,
+                else_if: else_if_statements.unwrap_or_default(),
                 else_node: else_statement,
             };
 
@@ -421,7 +432,10 @@ fn else_if_statement(input: &str) -> IResult<ElseIfNode> {
             |(_, body, _)| body,
         ))(input)?;
 
-        let else_if_node = ElseIfNode { conditions, body };
+        let else_if_node = ElseIfNode {
+            conditions,
+            body: body.unwrap_or_default(),
+        };
 
         Ok((input, else_if_node))
     })(input)
@@ -1098,13 +1112,13 @@ mod tests {
             Ok((
                 "asd",
                 ConditionsNode::Group {
-                    left: Box::new(ConditionsNode::Group {
-                        left: Box::new(ConditionsNode::Expression(x_eq_true.clone())),
+                    left: Box::new(ConditionsNode::Expression(x_eq_true.clone())),
+                    right: Box::new(ConditionsNode::Group {
+                        left: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
                         right: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
-                        operator: BoolOp::Or,
+                        operator: BoolOp::And,
                     }),
-                    right: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
-                    operator: BoolOp::And,
+                    operator: BoolOp::Or,
                 }
             ))
         );
@@ -1134,18 +1148,18 @@ mod tests {
                     body: Some(vec![IfNode {
                         conditions: conditions("x == true").unwrap().1,
                         body: None,
-                        else_if: None,
+                        else_if: vec![],
                         else_node: None
                     }]),
-                    else_if: Some(vec![ElseIfNode {
+                    else_if: vec![ElseIfNode {
                         conditions: conditions("x < 4 && y > 6").unwrap().1,
-                        body: None
-                    }]),
+                        body: vec![]
+                    }],
                     else_node: Some(ElseNode {
                         body: vec![IfNode {
                             conditions: conditions("x != false").unwrap().1,
                             body: None,
-                            else_if: None,
+                            else_if: vec![],
                             else_node: None
                         }]
                     })

@@ -20,6 +20,7 @@ pub fn generate_tests_for_gpt_input(input: &str) -> Result<Vec<NTupleSingleInter
         Err::Error(err) | Err::Failure(err) => GPTError::ParseError(convert_error(input, err)),
         Err::Incomplete(err) => GPTError::UnknownParseError(format!("{:?}", err)),
     })?;
+    log::warn!("Inputs: {:#?}", features);
     let test_cases = generate_test_cases_for_multiple_features(&features)
         .map_err(|err| GPTError::IntervalError(format!("{:?}", err)))?;
 

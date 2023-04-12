@@ -69,24 +69,6 @@ fn convert_predicate_to_ntuple(
     variables: &[ir::Variable],
     predicate: &ir::Predicate,
 ) -> Vec<NTupleInput> {
-    // let inputs = predicate
-    //     .clone()
-    //     .into_iter()
-    //     .map(|condition| {
-    //         let variable = variables
-    //             .iter()
-    //             .find(|variable| condition.get_variable() == variable.var_name)
-    //             // TODO: This should be an actual error in a Result type
-    //             .unwrap_or_else(|| panic!("Undefined variable: {}", condition.get_variable()));
-    //         (
-    //             variable.var_name.to_owned(),
-    //             convert_condition(variable, condition),
-    //         )
-    //     })
-    //     .collect();
-
-    // NTupleInput { inputs }
-
     predicate
         .conjunction_of_conditions()
         .into_iter()

@@ -1,23 +1,9 @@
-use crate::{
-    dto::Expression,
-    interval::{Boundary, MultiInterval},
-};
+use crate::interval::{Boundary, MultiInterval};
 
 use super::{
-    ast::{self, BinaryOp, BoolOp, ConstantPosition, EqOp, RootNode},
-    ir::{self, IntervalCondition},
+    ast::{self, BinaryOp, BoolOp, ConstantPosition, ElseNode, EqOp, IfNode, RootNode},
+    ir::{self, IntervalCondition, Predicate},
 };
-
-const fn map_binary_op_to_expression(binop: &BinaryOp) -> Expression {
-    match binop {
-        BinaryOp::LessThan => Expression::LessThan,
-        BinaryOp::GreaterThan => Expression::GreaterThan,
-        BinaryOp::LessThanEqualTo => Expression::LessThanOrEqualTo,
-        BinaryOp::GreaterThanEqualTo => Expression::GreaterThanOrEqualTo,
-        BinaryOp::Equal => Expression::EqualTo,
-        BinaryOp::NotEqual => Expression::NotEqualTo,
-    }
-}
 
 const fn resolve_bool_condition(eq_op: &EqOp, bool_val: bool) -> bool {
     /*
@@ -35,19 +21,22 @@ const fn resolve_bool_condition(eq_op: &EqOp, bool_val: bool) -> bool {
 fn binary_op_to_interval(binop: &BinaryOp, num: f32) -> MultiInterval {
     use Boundary::{Closed, Open};
 
-    let (lo_boundary, lo, hi, hi_boundary) = match binop {
-        BinaryOp::LessThan => (Open, f32::NEG_INFINITY, num, Open),
-        BinaryOp::GreaterThan => (Open, num, f32::INFINITY, Open),
-        BinaryOp::LessThanEqualTo => (Open, f32::NEG_INFINITY, num, Closed),
-        BinaryOp::GreaterThanEqualTo => (Closed, num, f32::INFINITY, Open),
-        BinaryOp::Equal => (Closed, num, num, Closed),
+    match binop {
+        BinaryOp::NotEqual => MultiInterval::new_closed_point(num).inverse(),
+        x => {
+            let (lo_boundary, lo, hi, hi_boundary) = match x {
+                BinaryOp::LessThan => (Open, f32::NEG_INFINITY, num, Open),
+                BinaryOp::GreaterThan => (Open, num, f32::INFINITY, Open),
+                BinaryOp::LessThanEqualTo => (Open, f32::NEG_INFINITY, num, Closed),
+                BinaryOp::GreaterThanEqualTo => (Closed, num, f32::INFINITY, Open),
+                BinaryOp::Equal => (Closed, num, num, Closed),
+                _ => unreachable!(),
+            };
 
-        // TODO: This should return (-Inf,num) (num, Inf) as a multi-interval
-        BinaryOp::NotEqual => (Open, num, num, Open),
-    };
-
-    MultiInterval::new(lo_boundary, lo, hi, hi_boundary)
-        .expect("in binary_op_to_interval we've checked that lo <= hi")
+            MultiInterval::new(lo_boundary, lo, hi, hi_boundary)
+                .expect("in binary_op_to_interval we've checked that lo <= hi")
+        }
+    }
 }
 
 fn convert_bool_condition(cond: &ast::BoolCondition) -> ir::Condition {
@@ -68,8 +57,6 @@ fn convert_binary_condition(cond: &ast::BinaryCondition) -> ir::Condition {
         cond.binary_op.clone()
     };
 
-    let expression = map_binary_op_to_expression(&binary_op);
-
     ir::Condition::Interval(IntervalCondition {
         var_name: cond.var_name.to_owned(),
         interval: binary_op_to_interval(&binary_op, cond.constant),
@@ -79,12 +66,18 @@ fn convert_binary_condition(cond: &ast::BinaryCondition) -> ir::Condition {
 fn convert_interval_condition(cond: &ast::IntervalCondition) -> ir::Condition {
     ir::Condition::Interval(ir::IntervalCondition {
         var_name: cond.var_name.to_owned(),
-        interval: cond.interval.clone(),
+        interval: match cond.interval_op {
+            ast::IntervalOp::In => cond.interval.clone(),
+            ast::IntervalOp::NotIn => cond.interval.inverse(),
+        },
     })
 }
 
 fn convert_condition_node(conditions_node: &ast::ConditionsNode) -> ir::Predicate {
     match conditions_node {
+        ast::ConditionsNode::Negated(cond) => {
+            ir::Predicate::Negated(Box::new(convert_condition_node(cond)))
+        }
         ast::ConditionsNode::Expression(cond) => ir::Predicate::Expression(match cond {
             ast::Condition::Bool(cond) => convert_bool_condition(cond),
             ast::Condition::Binary(cond) => convert_binary_condition(cond),
@@ -102,30 +95,67 @@ fn convert_condition_node(conditions_node: &ast::ConditionsNode) -> ir::Predicat
     }
 }
 
+fn traverse_body(body: &[IfNode], initial_conditions: Predicate) -> Vec<Predicate> {
+    let body_conditions = body.iter().flat_map(traverse_if_node);
+    body_conditions
+        .map(|body_condition| ir::Predicate::Group {
+            left: Box::new(initial_conditions.clone()),
+            right: Box::new(body_condition),
+            operator: BoolOp::And,
+        })
+        .collect()
+}
+
 fn traverse_if_node(if_node: &ast::IfNode) -> Vec<ir::Predicate> {
-    if if_node.else_if.as_ref().map_or(false, |x| !x.is_empty()) {
-        panic!("Else if not yet supported!")
-    }
-
-    if if_node.else_node.is_some() {
-        panic!("Else not yet supported!")
-    }
-
     let initial_conditions = convert_condition_node(&if_node.conditions);
 
-    match &if_node.body {
+    let mut predicates_so_far = match &if_node.body {
         None => vec![initial_conditions],
-        Some(body_if_nodes) => {
-            let body_conditions = body_if_nodes.iter().flat_map(traverse_if_node);
-            body_conditions
-                .map(|body_condition| ir::Predicate::Group {
-                    left: Box::new(initial_conditions.clone()),
-                    right: Box::new(body_condition),
-                    operator: BoolOp::And,
-                })
-                .collect()
-        }
+        Some(body) if body.is_empty() => vec![initial_conditions],
+        Some(body) => traverse_body(body, initial_conditions),
+    };
+
+    for else_if_node in if_node.else_if.iter() {
+        let initial_conditions = convert_condition_node(&else_if_node.conditions);
+        let previous_negated_plus_initial_conditions: Vec<Predicate> = predicates_so_far
+            .iter()
+            .map(|p| ir::Predicate::Group {
+                left: Box::new(ir::Predicate::Negated(Box::new(p.clone()))),
+                right: Box::new(initial_conditions.clone()),
+                operator: BoolOp::And,
+            })
+            .collect();
+
+        let mut else_if_predicates = match &else_if_node.body[..] {
+            [] => previous_negated_plus_initial_conditions,
+            body => previous_negated_plus_initial_conditions
+                .iter()
+                .flat_map(|p| traverse_body(body, p.clone()))
+                .collect(),
+        };
+
+        predicates_so_far.append(&mut else_if_predicates);
     }
+
+    let mut else_predicates = {
+        let previous_negated: Vec<Predicate> = predicates_so_far
+            .iter()
+            .map(|p| ir::Predicate::Negated(Box::new(p.clone())))
+            .collect();
+
+        match &if_node.else_node {
+            None => vec![],
+            Some(ElseNode { body }) if body.is_empty() => previous_negated,
+            Some(ElseNode { body }) => previous_negated
+                .iter()
+                .flat_map(|if_predicate| traverse_body(body, if_predicate.clone()))
+                .collect(),
+        }
+    };
+
+    predicates_so_far.append(&mut else_predicates);
+
+    predicates_so_far
 }
 
 fn convert_variable<'a>(var_node: &'a ast::VarNode) -> ir::Variable {

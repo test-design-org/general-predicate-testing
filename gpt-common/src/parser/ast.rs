@@ -113,14 +113,14 @@ pub struct VarNode<'a> {
 pub struct IfNode<'a> {
     pub conditions: ConditionsNode<'a>,
     pub body: Option<Vec<IfNode<'a>>>,
-    pub else_if: Option<Vec<ElseIfNode<'a>>>,
+    pub else_if: Vec<ElseIfNode<'a>>,
     pub else_node: Option<ElseNode<'a>>,
 }
 
 #[derive(PartialEq, Debug)]
 pub struct ElseIfNode<'a> {
     pub conditions: ConditionsNode<'a>,
-    pub body: Option<Vec<IfNode<'a>>>,
+    pub body: Vec<IfNode<'a>>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -130,6 +130,7 @@ pub struct ElseNode<'a> {
 
 #[derive(PartialEq, Debug)]
 pub enum ConditionsNode<'a> {
+    Negated(Box<ConditionsNode<'a>>),
     Expression(Condition<'a>),
     Group {
         operator: BoolOp,

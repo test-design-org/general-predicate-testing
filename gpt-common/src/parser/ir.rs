@@ -41,6 +41,7 @@ impl Condition {
 
 #[derive(Clone, PartialEq)]
 pub enum Predicate {
+    Negated(Box<Predicate>),
     Expression(Condition),
     Group {
         left: Box<Predicate>,
@@ -52,6 +53,7 @@ pub enum Predicate {
 impl Predicate {
     pub fn negated(&self) -> Predicate {
         match self {
+            Self::Negated(pred) => pred.as_ref().clone(),
             Self::Expression(cond) => match cond {
                 Condition::Bool(cond) => Self::Expression(Condition::Bool(BoolCondition {
                     var_name: cond.var_name.clone(),
@@ -81,6 +83,7 @@ impl Predicate {
 
     fn to_ands(&self) -> Vec<Predicate> {
         match self {
+            Self::Negated(pred) => pred.negated().to_ands(),
             Self::Expression(cond) => vec![Self::Expression(cond.clone())],
             Self::Group {
                 left,
@@ -126,6 +129,9 @@ impl Predicate {
 
     fn one_pred_foo(&self) -> Vec<Vec<Condition>> {
         match self {
+            Self::Negated(_) => {
+                panic!("This should not happen, in conjunction_of_conditions after we've called self.to_ands() there is a Negated condition. to_ands() should have taken care of that");
+            }
             Self::Expression(cond) => vec![vec![cond.clone()]],
             Self::Group {
                 left,
@@ -171,6 +177,7 @@ pub struct Feature {
 impl fmt::Display for Predicate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Negated(pred) => write!(f, "!({})", pred),
             Self::Expression(cond) => match cond {
                 Condition::Bool(cond) => write!(f, "{} == {}", cond.var_name, cond.should_equal_to),
                 Condition::Interval(cond) => write!(f, "{} in {}", cond.var_name, cond.interval),
