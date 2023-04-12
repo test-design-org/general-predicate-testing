@@ -1,6 +1,14 @@
-use crate::dto::{BoolDTO, BoolExpression, Input, IntervalDTO, NTupleInput};
+use std::collections::HashMap;
 
-use super::ir::{self, Feature};
+use crate::{
+    dto::{BoolDTO, BoolExpression, Input, IntervalDTO, NTupleInput},
+    interval::Intersectable,
+};
+
+use super::{
+    ast::BoolOp,
+    ir::{self, BoolCondition, Condition, Feature, IntervalCondition},
+};
 
 const fn convert_bool_dto(condition: &ir::BoolCondition) -> BoolDTO {
     let expression = if condition.should_equal_to == true {
@@ -19,7 +27,6 @@ fn convert_interval_dto(variable: &ir::Variable, condition: &ir::IntervalConditi
     let precision = variable.var_type.get_precision().expect("Type error: when converting an interval dto in convert_interval_dto, the variable type doesn't have a precision!");
 
     IntervalDTO {
-        expression: condition.expression,
         interval: condition.interval.clone(),
         precision,
         is_constant: false,
@@ -61,24 +68,96 @@ fn convert_condition(variable: &ir::Variable, condition: ir::Condition) -> Input
 fn convert_predicate_to_ntuple(
     variables: &[ir::Variable],
     predicate: &ir::Predicate,
-) -> NTupleInput {
-    let inputs = predicate
-        .clone()
-        .into_iter()
-        .map(|condition| {
-            let variable = variables
-                .iter()
-                .find(|variable| condition.get_variable() == variable.var_name)
-                // TODO: This should be an actual error in a Result type
-                .unwrap_or_else(|| panic!("Undefined variable: {}", condition.get_variable()));
-            (
-                variable.var_name.to_owned(),
-                convert_condition(variable, condition),
-            )
-        })
-        .collect();
+) -> Vec<NTupleInput> {
+    // let inputs = predicate
+    //     .clone()
+    //     .into_iter()
+    //     .map(|condition| {
+    //         let variable = variables
+    //             .iter()
+    //             .find(|variable| condition.get_variable() == variable.var_name)
+    //             // TODO: This should be an actual error in a Result type
+    //             .unwrap_or_else(|| panic!("Undefined variable: {}", condition.get_variable()));
+    //         (
+    //             variable.var_name.to_owned(),
+    //             convert_condition(variable, condition),
+    //         )
+    //     })
+    //     .collect();
 
-    NTupleInput { inputs }
+    // NTupleInput { inputs }
+
+    predicate
+        .conjunction_of_conditions()
+        .into_iter()
+        .filter_map(|conditions| {
+            conditions
+                .into_iter()
+                .fold(
+                    Some(HashMap::<String, Condition>::new()),
+                    |ntuple, cond| {
+                        ntuple.map(|mut ntuple| {
+                            let var_name = cond.get_variable();
+                            let to_insert = match (&cond, ntuple.get(var_name)) {
+                                (x, None) => Some(x.clone()),
+                                (
+                                     Condition::Bool(BoolCondition {
+                                        should_equal_to: old,
+                                        ..
+                                    }),
+                                    Some(Condition::Bool(BoolCondition {
+                                        should_equal_to: new,
+                                        ..
+                                    })),
+                                ) => {
+                                    if old != new {
+                                        None
+                                    } else {
+                                        Some(Condition::Bool(BoolCondition {
+                                            var_name: var_name.to_owned(),
+                                            should_equal_to: *old,
+                                        }))
+                                    }
+                                }
+                                (
+                                    Condition::Interval(IntervalCondition {
+                                        interval: old, ..
+                                    }),
+                                    Some(Condition::Interval(IntervalCondition {
+                                        interval: new,
+                                        ..
+                                    })),
+                                ) => old.intersect(&new).map(|intersection| {
+                                    Condition::Interval(IntervalCondition {
+                                        interval: intersection,
+                                        var_name: var_name.to_owned(),
+                                    })
+                                }),
+                                (x, y) => panic!("Mismatched types in predicate! Variable {var_name} has both a boolean and an interval condition! {x:#?} and {y:#?}")
+                            };
+                            if let Some(to_insert) = to_insert {
+                                ntuple.insert(var_name.to_owned(), to_insert);
+                            }
+                            ntuple
+                        })
+                    },
+                )
+                .map(|x| x.into_iter().map(|(var_name, condition)| {
+                    let variable = variables
+                        .iter()
+                        .find(|variable| var_name.as_str() == variable.var_name)
+                        // TODO: This should be an actual error in a Result type
+                        .unwrap_or_else(|| {
+                            panic!("Undefined variable: {}", var_name)
+                        });
+                    (
+                        var_name,
+                        convert_condition(variable, condition),
+                    )
+                }))
+                .map(|x| NTupleInput {inputs: x.collect() })
+        })
+        .collect()
 }
 
 pub fn ir_to_ntuple(
@@ -90,6 +169,6 @@ pub fn ir_to_ntuple(
     predicates
         .clone()
         .iter()
-        .map(|predicate| convert_predicate_to_ntuple(variables, predicate))
+        .flat_map(|predicate| convert_predicate_to_ntuple(variables, predicate))
         .collect()
 }

@@ -35,7 +35,6 @@ pub enum Expression {
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct IntervalDTO {
-    pub expression: Expression,
     pub interval: MultiInterval,
     pub precision: f32,
     pub is_constant: bool,

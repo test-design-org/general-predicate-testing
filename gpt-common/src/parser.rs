@@ -9,11 +9,12 @@ use nom::character::is_alphanumeric;
 use nom::combinator::{complete, map, map_res, opt, recognize};
 use nom::combinator::{cut, value};
 use nom::combinator::{eof, fail};
-use nom::error::{context, VerboseError};
+use nom::error::{context, ParseError, VerboseError};
 use nom::multi::many0;
 use nom::multi::many1;
 use nom::multi::separated_list1;
-use nom::sequence::{terminated, tuple};
+use nom::sequence::{delimited, terminated, tuple};
+use nom::Parser;
 use nom::{branch::alt, character::streaming::char};
 
 use crate::interval::{Boundary, MultiInterval};
@@ -128,10 +129,7 @@ fn binary_op(input: &str) -> IResult<BinaryOp> {
 fn bool_op(input: &str) -> IResult<BoolOp> {
     context(
         "Boolean Operator",
-        alt((
-            value(BoolOp::And, tag("&&")),
-            // tag("||"),
-        )),
+        alt((value(BoolOp::And, tag("&&")), value(BoolOp::Or, tag("||")))),
     )(input)
 }
 
@@ -310,11 +308,71 @@ fn condition(input: &str) -> IResult<Condition> {
     )(input)
 }
 
+fn parenthesized<'a, T>(
+    mut parser: impl FnMut(&'a str) -> IResult<T>,
+) -> impl FnMut(&'a str) -> IResult<T> {
+    move |input| {
+        delimited(
+            terminated(char('('), whitespace),
+            |i| parser(i),
+            terminated(char(')'), whitespace),
+        )(input)
+    }
+}
+
+fn raw_expression(input: &str) -> IResult<ConditionsNode> {
+    let (input, condition) = terminated(condition, whitespace)(input)?;
+
+    Ok((input, ConditionsNode::Expression(condition)))
+}
+
+fn expression(input: &str) -> IResult<ConditionsNode> {
+    alt((parenthesized(conditions), raw_expression))(input)
+}
+
+fn or_condition(input: &str) -> IResult<ConditionsNode> {
+    alt((
+        |input| {
+            let (input, left) = expression(input)?;
+            let (input, op) = terminated(value(BoolOp::Or, tag("||")), whitespace)(input)?;
+            let (input, right) = or_condition(input)?;
+
+            Ok((
+                input,
+                ConditionsNode::Group {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    operator: op,
+                },
+            ))
+        },
+        expression,
+    ))(input)
+}
+
+fn and_condition(input: &str) -> IResult<ConditionsNode> {
+    alt((
+        |input| {
+            let (input, left) = or_condition(input)?;
+            let (input, op) = terminated(value(BoolOp::And, tag("&&")), whitespace)(input)?;
+            let (input, right) = and_condition(input)?;
+
+            Ok((
+                input,
+                ConditionsNode::Group {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                    operator: op,
+                },
+            ))
+        },
+        or_condition,
+        expression,
+    ))(input)
+}
+
 fn conditions(input: &str) -> IResult<ConditionsNode> {
-    map(
-        separated_list1(terminated(bool_op, whitespace), condition),
-        |conditions| ConditionsNode { conditions },
-    )(input)
+    context("conditions", alt((and_condition, or_condition, expression)))(input)
 }
 
 fn if_statement(input: &str) -> IResult<IfNode> {
@@ -510,6 +568,7 @@ pub fn parse_gpt_to_features(input: &str) -> IResult<Vec<Vec<NTupleInput>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_whitespace() {
@@ -991,19 +1050,16 @@ mod tests {
 
         assert_eq!(
             conditions("true == x"),
-            Ok((
-                "",
-                ConditionsNode {
-                    conditions: vec![x_eq_true.clone()]
-                }
-            ))
+            Ok(("", ConditionsNode::Expression(x_eq_true.clone())))
         );
         assert_eq!(
             conditions("true == x && 0 > y"),
             Ok((
                 "",
-                ConditionsNode {
-                    conditions: vec![x_eq_true.clone(), y_greater_0.clone()]
+                ConditionsNode::Group {
+                    left: Box::new(ConditionsNode::Expression(x_eq_true.clone())),
+                    right: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
+                    operator: BoolOp::And,
                 }
             ))
         );
@@ -1011,11 +1067,48 @@ mod tests {
             conditions("true == x && 0 > y && 0 > y    asd"),
             Ok((
                 "asd",
-                ConditionsNode {
-                    conditions: vec![x_eq_true.clone(), y_greater_0.clone(), y_greater_0.clone()]
+                ConditionsNode::Group {
+                    left: Box::new(ConditionsNode::Expression(x_eq_true.clone())),
+                    right: Box::new(ConditionsNode::Group {
+                        left: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
+                        right: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
+                        operator: BoolOp::And,
+                    }),
+                    operator: BoolOp::And,
                 }
             ))
         );
+        assert_eq!(
+            conditions("(true == x && 0 > y) && 0 > y    asd"),
+            Ok((
+                "asd",
+                ConditionsNode::Group {
+                    left: Box::new(ConditionsNode::Group {
+                        left: Box::new(ConditionsNode::Expression(x_eq_true.clone())),
+                        right: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
+                        operator: BoolOp::And,
+                    }),
+                    right: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
+                    operator: BoolOp::And,
+                }
+            ))
+        );
+        assert_eq!(
+            conditions("true == x || 0 > y && 0 > y    asd"),
+            Ok((
+                "asd",
+                ConditionsNode::Group {
+                    left: Box::new(ConditionsNode::Group {
+                        left: Box::new(ConditionsNode::Expression(x_eq_true.clone())),
+                        right: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
+                        operator: BoolOp::Or,
+                    }),
+                    right: Box::new(ConditionsNode::Expression(y_greater_0.clone())),
+                    operator: BoolOp::And,
+                }
+            ))
+        );
+        // TODO: Add a bunch more tests for testing good precedence detection and stuff
         assert!(conditions("").is_err());
         assert!(conditions("true == x &&").is_err());
     }

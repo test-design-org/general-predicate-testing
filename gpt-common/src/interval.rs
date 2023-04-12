@@ -158,7 +158,7 @@ impl Intersectable for Interval {
     }
 }
 
-impl fmt::Debug for Interval {
+impl fmt::Display for Interval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let lo_boundary = match self.lo_boundary {
             Boundary::Open => "(",
@@ -173,7 +173,13 @@ impl fmt::Debug for Interval {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+impl fmt::Debug for Interval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+#[derive(PartialEq, Clone)]
 pub struct MultiInterval {
     /// `intervals` is always sorted in ascending order and there are no overlapping intervals
     pub(crate) intervals: Vec<Interval>,
@@ -394,6 +400,27 @@ impl Intersectable for MultiInterval {
     }
 }
 
+impl fmt::Display for MultiInterval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_empty() {
+            return Ok(());
+        }
+        write!(f, "{}", self.intervals[0])?;
+
+        for interval in self.intervals.iter().skip(1) {
+            write!(f, " {}", interval)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Debug for MultiInterval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 impl Unionable<Self, Self> for MultiInterval {
     fn union(&self, other: &Self) -> Self {
         let mut intervals = self.intervals.clone();
@@ -467,7 +494,7 @@ pub(crate) mod test {
         assert_eq!(
             interval.contains_point(point),
             expected,
-            "Interval.contains_point failed: {interval:?}.contains_point({point:?}) should be {expected:?}",
+            "Interval.contains_point failed: {interval}.contains_point({point}) should be {expected}",
         );
     }
 
@@ -532,7 +559,7 @@ pub(crate) mod test {
         assert_eq!(
             this.intersects_with(&that),
             expected,
-            "Interval.intersects_with failed: {this:?}.intersects_with({that:?}) should be {expected:?}",
+            "Interval.intersects_with failed: {this}.intersects_with({that}) should be {expected}",
         );
     }
 
@@ -597,7 +624,7 @@ pub(crate) mod test {
         assert_eq!(
             this.intersect(&that),
             expected.map(int),
-            "Interval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
+            "Interval.intersect failed: {this}.intersect({that}) should be {expected:?}",
         );
     }
 
@@ -611,7 +638,7 @@ pub(crate) mod test {
         assert_eq!(
             interval.is_empty(),
             expected,
-            "Interval.isEmpty failed: {interval:?}.is_empty() should be {expected}"
+            "Interval.isEmpty failed: {interval}.is_empty() should be {expected}"
         );
     }
 
@@ -640,7 +667,7 @@ pub(crate) mod test {
         assert_eq!(
             left.lo_cmp(&right),
             expected,
-            "Interval.lo_cmp failed: {left:?}.lo_cmp({right:?}) should be {expected:?}"
+            "Interval.lo_cmp failed: {left}.lo_cmp({right}) should be {expected:?}"
         );
     }
 
@@ -669,7 +696,7 @@ pub(crate) mod test {
         assert_eq!(
             left.hi_cmp(&right),
             expected,
-            "Interval.hi_cmp failed: {left:?}.hi_cmp({right:?}) should be {expected:?}"
+            "Interval.hi_cmp failed: {left}.hi_cmp({right}) should be {expected:?}"
         );
     }
 
@@ -702,7 +729,7 @@ pub(crate) mod test {
         assert_eq!(
             this.intersect(&that),
             expected.map(multiint),
-            "MultiInterval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
+            "MultiInterval.intersect failed: {this}.intersect({that}) should be {expected:?}",
         );
     }
 
@@ -748,7 +775,7 @@ pub(crate) mod test {
         assert_eq!(
             interval.inverse(),
             expected,
-            "MultiInterval.invert failed: {interval:?}.inverse() should be {expected:?}",
+            "MultiInterval.invert failed: {interval}.inverse() should be {expected}",
         );
     }
 

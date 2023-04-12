@@ -51,19 +51,19 @@ impl BinaryOp {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum IntervalOp {
     In,
     NotIn,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BoolOp {
     And,
-    // Or,
+    Or,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ConstantPosition {
     LeftHandSide,
     RightHandSide,
@@ -129,8 +129,13 @@ pub struct ElseNode<'a> {
 }
 
 #[derive(PartialEq, Debug)]
-pub struct ConditionsNode<'a> {
-    pub conditions: Vec<Condition<'a>>,
+pub enum ConditionsNode<'a> {
+    Expression(Condition<'a>),
+    Group {
+        operator: BoolOp,
+        left: Box<ConditionsNode<'a>>,
+        right: Box<ConditionsNode<'a>>,
+    },
 }
 
 #[derive(PartialEq, Debug)]

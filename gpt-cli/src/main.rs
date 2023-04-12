@@ -41,7 +41,14 @@ pub fn main() {
     ]
     "#;
 
-    let test_cases = match generate_tests_for_gpt_input(input2) {
+    let input3 = r#"
+        var x: num
+        var y: num
+
+        if((x == 0 || y == 0) || (x == 1 || y == 1))
+    "#;
+
+    let test_cases = match generate_tests_for_gpt_input(input3) {
         Ok(test_cases) => test_cases,
         Err(e) => panic!("Error: {}", e),
     };

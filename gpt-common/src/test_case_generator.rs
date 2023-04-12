@@ -436,7 +436,6 @@ mod tests {
             (
                 "y",
                 Input::Interval(IntervalDTO {
-                    expression: Expression::LessThan,
                     interval: MultiInterval::new(Open, f32::NEG_INFINITY, 50.0, Open).unwrap(),
                     precision: 0.01,
                     is_constant: false,

@@ -4,7 +4,7 @@ use crate::{
 };
 
 use super::{
-    ast::{self, BinaryOp, ConstantPosition, EqOp, RootNode},
+    ast::{self, BinaryOp, BoolOp, ConstantPosition, EqOp, RootNode},
     ir::{self, IntervalCondition},
 };
 
@@ -50,16 +50,16 @@ fn binary_op_to_interval(binop: &BinaryOp, num: f32) -> MultiInterval {
         .expect("in binary_op_to_interval we've checked that lo <= hi")
 }
 
-const fn convert_bool_condition<'a>(cond: &'a ast::BoolCondition) -> ir::Condition<'a> {
+fn convert_bool_condition(cond: &ast::BoolCondition) -> ir::Condition {
     let should_equal_to = resolve_bool_condition(&cond.eq_op, cond.constant);
 
     ir::Condition::Bool(ir::BoolCondition {
-        var_name: cond.var_name,
+        var_name: cond.var_name.to_owned(),
         should_equal_to,
     })
 }
 
-fn convert_binary_condition<'a>(cond: &'a ast::BinaryCondition) -> ir::Condition<'a> {
+fn convert_binary_condition(cond: &ast::BinaryCondition) -> ir::Condition {
     // createUnaryIntervalDTO expects the constant to be on the right, like: x < 0
     // If it was inputted on the left like 0 > x we should flip it to be x < 0
     let binary_op = if cond.constant_position == ConstantPosition::LeftHandSide {
@@ -71,35 +71,38 @@ fn convert_binary_condition<'a>(cond: &'a ast::BinaryCondition) -> ir::Condition
     let expression = map_binary_op_to_expression(&binary_op);
 
     ir::Condition::Interval(IntervalCondition {
-        var_name: cond.var_name,
-        expression,
+        var_name: cond.var_name.to_owned(),
         interval: binary_op_to_interval(&binary_op, cond.constant),
     })
 }
 
-fn convert_interval_condition<'a>(cond: &'a ast::IntervalCondition) -> ir::Condition<'a> {
+fn convert_interval_condition(cond: &ast::IntervalCondition) -> ir::Condition {
     ir::Condition::Interval(ir::IntervalCondition {
-        var_name: cond.var_name,
-        expression: Expression::Interval,
+        var_name: cond.var_name.to_owned(),
         interval: cond.interval.clone(),
     })
 }
 
-fn convert_condition_node<'a>(conditions_node: &'a ast::ConditionsNode) -> ir::Predicate<'a> {
-    let conditions = conditions_node
-        .conditions
-        .iter()
-        .map(|cond| match cond {
+fn convert_condition_node(conditions_node: &ast::ConditionsNode) -> ir::Predicate {
+    match conditions_node {
+        ast::ConditionsNode::Expression(cond) => ir::Predicate::Expression(match cond {
             ast::Condition::Bool(cond) => convert_bool_condition(cond),
             ast::Condition::Binary(cond) => convert_binary_condition(cond),
             ast::Condition::Interval(cond) => convert_interval_condition(cond),
-        })
-        .collect();
-
-    conditions
+        }),
+        ast::ConditionsNode::Group {
+            operator,
+            left,
+            right,
+        } => ir::Predicate::Group {
+            left: Box::new(convert_condition_node(left)),
+            right: Box::new(convert_condition_node(right)),
+            operator: *operator,
+        },
+    }
 }
 
-fn traverse_if_node<'a>(if_node: &'a ast::IfNode) -> Vec<ir::Predicate<'a>> {
+fn traverse_if_node(if_node: &ast::IfNode) -> Vec<ir::Predicate> {
     if if_node.else_if.as_ref().map_or(false, |x| !x.is_empty()) {
         panic!("Else if not yet supported!")
     }
@@ -115,23 +118,24 @@ fn traverse_if_node<'a>(if_node: &'a ast::IfNode) -> Vec<ir::Predicate<'a>> {
         Some(body_if_nodes) => {
             let body_conditions = body_if_nodes.iter().flat_map(traverse_if_node);
             body_conditions
-                .map(|body_condition| {
-                    let conds = [initial_conditions.as_slice(), body_condition.as_slice()].concat();
-                    conds
+                .map(|body_condition| ir::Predicate::Group {
+                    left: Box::new(initial_conditions.clone()),
+                    right: Box::new(body_condition),
+                    operator: BoolOp::And,
                 })
                 .collect()
         }
     }
 }
 
-const fn convert_variable<'a>(var_node: &'a ast::VarNode) -> ir::Variable<'a> {
+fn convert_variable<'a>(var_node: &'a ast::VarNode) -> ir::Variable {
     ir::Variable {
-        var_name: var_node.var_name,
+        var_name: var_node.var_name.to_owned(),
         var_type: var_node.var_type,
     }
 }
 
-fn traverse_feature_node<'a>(feature_node: &'a ast::FeatureNode) -> ir::Feature<'a> {
+fn traverse_feature_node<'a>(feature_node: &'a ast::FeatureNode) -> ir::Feature {
     let variables = feature_node
         .variables
         .iter()
@@ -150,6 +154,6 @@ fn traverse_feature_node<'a>(feature_node: &'a ast::FeatureNode) -> ir::Feature<
     }
 }
 
-pub fn convert_ast_to_ir<'a>(root: &'a RootNode<'a>) -> Vec<ir::Feature<'a>> {
+pub fn convert_ast_to_ir<'a>(root: &'a RootNode<'a>) -> Vec<ir::Feature> {
     root.features.iter().map(traverse_feature_node).collect()
 }
