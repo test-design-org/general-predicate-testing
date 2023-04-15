@@ -1,4 +1,6 @@
 [workspace]
+rust-version = "1.5.2"
+edition = "2021"
 
 members = [
     "gpt-cli",

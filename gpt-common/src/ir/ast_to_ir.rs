@@ -1,8 +1,8 @@
-use crate::interval::{Boundary, MultiInterval};
-
-use super::{
-    ast::{self, BinaryOp, BoolOp, ConstantPosition, ElseNode, EqOp, IfNode, RootNode},
-    ir::{self, IntervalCondition, Predicate},
+use super::{IntervalCondition, Predicate};
+use crate::{
+    interval::{Boundary, MultiInterval},
+    ir,
+    parser::ast::{self, BinaryOp, BoolOp, ConstantPosition, ElseNode, EqOp, IfNode, RootNode},
 };
 
 const fn resolve_bool_condition(eq_op: &EqOp, bool_val: bool) -> bool {

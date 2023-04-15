@@ -9,6 +9,7 @@ pub mod bva;
 pub mod dto;
 pub mod graph_reduction;
 pub mod interval;
+mod ir;
 pub mod parser;
 pub mod prelude;
 pub mod test_case_generator;

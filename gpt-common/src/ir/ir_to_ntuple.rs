@@ -1,13 +1,10 @@
 use std::collections::HashMap;
 
+use super::{BoolCondition, Condition, Feature, IntervalCondition};
 use crate::{
     dto::{BoolDTO, BoolExpression, Input, IntervalDTO, NTupleInput},
     interval::Intersectable,
-};
-
-use super::{
-    ast::BoolOp,
-    ir::{self, BoolCondition, Condition, Feature, IntervalCondition},
+    ir,
 };
 
 const fn convert_bool_dto(condition: &ir::BoolCondition) -> BoolDTO {

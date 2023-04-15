@@ -2,9 +2,13 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::{dto::Expression, interval::MultiInterval};
+use crate::{
+    interval::MultiInterval,
+    parser::ast::{BoolOp, Type},
+};
 
-use super::ast::{BoolOp, Type};
+pub mod ast_to_ir;
+pub mod ir_to_ntuple;
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Variable {
@@ -208,10 +212,10 @@ impl fmt::Debug for Predicate {
 
 #[cfg(test)]
 mod test {
-    use crate::{interval::test::multiint, parser::ast::BoolOp};
     use pretty_assertions::{assert_eq, assert_ne};
 
     use super::{BoolCondition, Condition, IntervalCondition, Predicate};
+    use crate::{interval::test::multiint, parser::ast::BoolOp};
 
     fn cond<'a>(var_name: &'a str, interval: &'a str) -> Condition {
         Condition::Interval(IntervalCondition {

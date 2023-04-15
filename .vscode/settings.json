@@ -9,5 +9,6 @@
     "[scss]": {
         "editor.formatOnSave": true,
     },
-    "rust-analyzer.checkOnSave.command": "clippy"
+    "rust-analyzer.check.command": "check",
+    "rust-analyzer.rustfmt.extraArgs": ["+nightly"]
 }
