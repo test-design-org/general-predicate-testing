@@ -12,13 +12,12 @@ use nom::{
     combinator::{eof, map},
     error::VerboseError,
     multi::many1,
-    sequence::terminated,
 };
 
 pub use self::primitives::interval;
 use self::{
     feature::{feature, feature_body},
-    utils::whitespace,
+    utils::{token, whitespace},
 };
 use super::dto::NTupleInput;
 use crate::ir;
@@ -34,8 +33,8 @@ fn root(input: &str) -> IResult<RootNode> {
     }
 
     let (input, features) = alt((
-        many1(terminated(feature, whitespace)), // Either a list of HGPT features
-        map(terminated(feature_body, whitespace), |x| vec![x]), // Or a sungle feature without the brackets
+        many1(token(feature)),                 // Either a list of HGPT features
+        map(token(feature_body), |x| vec![x]), // Or a sungle feature without the brackets
     ))(input)?;
     let (input, _) = eof(input)?;
 

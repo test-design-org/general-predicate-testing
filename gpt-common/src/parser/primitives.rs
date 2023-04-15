@@ -4,18 +4,19 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::{
-        complete::{anychar, digit1, space0},
+        complete::{anychar, digit1},
         is_alphabetic, is_alphanumeric,
         streaming::char,
     },
     combinator::{complete, cut, fail, map, map_res, opt, recognize, value},
     error::context,
     multi::many0,
-    sequence::{terminated, tuple},
+    sequence::tuple,
 };
 
 use super::{
     ast::{BinaryOp, EqOp, IntervalOp},
+    utils::token,
     IResult,
 };
 use crate::interval::{Boundary, MultiInterval};
@@ -114,11 +115,11 @@ pub fn interval(input: &str) -> IResult<MultiInterval> {
         "interval",
         map_res(
             tuple((
-                terminated(parse_lo_openness, space0),
-                terminated(number, space0),
-                terminated(char(','), space0),
-                terminated(number, space0),
-                terminated(parse_hi_openness, space0),
+                token(parse_lo_openness),
+                token(number),
+                token(char(',')),
+                token(number),
+                token(parse_hi_openness),
             )),
             |(lo_openness, lo, _comma, hi, hi_openness)| {
                 MultiInterval::new(lo_openness, lo, hi, hi_openness)

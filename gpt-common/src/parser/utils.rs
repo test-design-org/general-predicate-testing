@@ -43,16 +43,20 @@ pub fn whitespace(input: &str) -> IResult<()> {
     )(input)
 }
 
+pub fn token<'a, T>(
+    mut parser: impl FnMut(&'a str) -> IResult<T>,
+) -> impl FnMut(&'a str) -> IResult<T> {
+    move |input| terminated(&mut parser, whitespace)(input)
+}
+
+pub fn token_lit(literal: &'static str) -> impl FnMut(&str) -> IResult<()> {
+    move |input| value((), token(tag(literal)))(input)
+}
+
 pub fn parenthesized<'a, T>(
     mut parser: impl FnMut(&'a str) -> IResult<T>,
 ) -> impl FnMut(&'a str) -> IResult<T> {
-    move |input| {
-        delimited(
-            terminated(char('('), whitespace),
-            |i| parser(i),
-            terminated(char(')'), whitespace),
-        )(input)
-    }
+    move |input| delimited(token(char('(')), &mut parser, token(char(')')))(input)
 }
 
 #[cfg(test)]

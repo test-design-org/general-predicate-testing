@@ -1,31 +1,26 @@
 use nom::{
-    bytes::complete::tag,
     combinator::{cut, map, opt},
     error::context,
     multi::{many0, many1},
-    sequence::{terminated, tuple},
+    sequence::tuple,
 };
 
 use super::{
     ast::{ElseIfNode, ElseNode, IfNode},
     condition::conditions,
-    utils::whitespace,
+    utils::token_lit,
     IResult,
 };
 
 fn else_if_statement(input: &str) -> IResult<ElseIfNode> {
     context("else if statement", |input| {
-        let (input, _) = terminated(tag("else"), whitespace)(input)?;
-        let (input, _) = terminated(tag("if"), whitespace)(input)?;
-        let (input, _) = terminated(tag("("), whitespace)(input)?;
+        let (input, _) = token_lit("else")(input)?;
+        let (input, _) = token_lit("if")(input)?;
+        let (input, _) = token_lit("(")(input)?;
         let (input, conditions) = conditions(input)?;
-        let (input, _) = terminated(tag(")"), whitespace)(input)?;
+        let (input, _) = token_lit(")")(input)?;
         let (input, body) = opt(map(
-            tuple((
-                terminated(tag("{"), whitespace),
-                many0(if_statement),
-                terminated(tag("}"), whitespace),
-            )),
+            tuple((token_lit("{"), many0(if_statement), token_lit("}"))),
             |(_, body, _)| body,
         ))(input)?;
 
@@ -40,10 +35,10 @@ fn else_if_statement(input: &str) -> IResult<ElseIfNode> {
 
 fn else_statement(input: &str) -> IResult<ElseNode> {
     context("else statement", |input| {
-        let (input, _) = terminated(tag("else"), whitespace)(input)?;
-        let (input, _) = terminated(tag("{"), whitespace)(input)?;
+        let (input, _) = token_lit("else")(input)?;
+        let (input, _) = token_lit("{")(input)?;
         let (input, if_statements) = many0(if_statement)(input)?;
-        let (input, _) = terminated(tag("}"), whitespace)(input)?;
+        let (input, _) = token_lit("}")(input)?;
 
         let else_node = ElseNode {
             body: if_statements,
@@ -55,17 +50,13 @@ fn else_statement(input: &str) -> IResult<ElseNode> {
 
 pub fn if_statement(input: &str) -> IResult<IfNode> {
     context("if statement", |input| {
-        let (input, _) = terminated(tag("if"), whitespace)(input)?;
+        let (input, _) = token_lit("if")(input)?;
         cut(|input| {
-            let (input, _) = terminated(tag("("), whitespace)(input)?;
+            let (input, _) = token_lit("(")(input)?;
             let (input, conditions) = conditions(input)?;
-            let (input, _) = terminated(tag(")"), whitespace)(input)?;
+            let (input, _) = token_lit(")")(input)?;
             let (input, body) = opt(map(
-                tuple((
-                    terminated(tag("{"), whitespace),
-                    many0(if_statement),
-                    terminated(tag("}"), whitespace),
-                )),
+                tuple((token_lit("{"), many0(if_statement), token_lit("}"))),
                 |(_, body, _)| body,
             ))(input)?;
             // TODO: would a many0 work here? It'd be better

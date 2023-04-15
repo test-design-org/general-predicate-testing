@@ -1,15 +1,13 @@
 use nom::{
     branch::alt,
-    bytes::complete::tag,
     combinator::{cut, map},
     multi::many1,
-    sequence::terminated,
 };
 
 use super::{
     ast::{FeatureNode, IfNode, VarNode},
     if_statement::if_statement,
-    utils::whitespace,
+    utils::token_lit,
     var_declaration::var_declaration,
     IResult,
 };
@@ -50,9 +48,9 @@ pub fn feature_body(input: &str) -> IResult<FeatureNode> {
 }
 
 pub fn feature(input: &str) -> IResult<FeatureNode> {
-    let (input, _) = terminated(tag("["), whitespace)(input)?;
+    let (input, _) = token_lit("[")(input)?;
     let (input, feature_node) = cut(feature_body)(input)?;
-    let (input, _) = cut(terminated(tag("]"), whitespace))(input)?;
+    let (input, _) = cut(token_lit("]"))(input)?;
 
     Ok((input, feature_node))
 }

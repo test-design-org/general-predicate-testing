@@ -14,14 +14,14 @@ use super::{
     },
     interval,
     primitives::{binary_op, boolean, eq_op, interval_op, number, var_name},
-    utils::{parenthesized, whitespace},
+    utils::{parenthesized, token, token_lit},
     IResult,
 };
 
 fn condition_bool_lhs(input: &str) -> IResult<Condition> {
-    let (input, constant) = terminated(boolean, whitespace)(input)?;
-    let (input, eq_op) = terminated(eq_op, whitespace)(input)?;
-    let (input, var_name) = terminated(var_name, whitespace)(input)?;
+    let (input, constant) = token(boolean)(input)?;
+    let (input, eq_op) = token(eq_op)(input)?;
+    let (input, var_name) = token(var_name)(input)?;
 
     Ok((
         input,
@@ -34,9 +34,9 @@ fn condition_bool_lhs(input: &str) -> IResult<Condition> {
 }
 
 fn condition_bool_rhs(input: &str) -> IResult<Condition> {
-    let (input, var_name) = terminated(var_name, whitespace)(input)?;
-    let (input, eq_op) = terminated(eq_op, whitespace)(input)?;
-    let (input, constant) = terminated(boolean, whitespace)(input)?;
+    let (input, var_name) = token(var_name)(input)?;
+    let (input, eq_op) = token(eq_op)(input)?;
+    let (input, constant) = token(boolean)(input)?;
 
     Ok((
         input,
@@ -50,11 +50,7 @@ fn condition_bool_rhs(input: &str) -> IResult<Condition> {
 
 fn condition_binary_lhs(input: &str) -> IResult<Condition> {
     map(
-        tuple((
-            terminated(number, whitespace),
-            terminated(binary_op, whitespace),
-            terminated(var_name, whitespace),
-        )),
+        tuple((token(number), token(binary_op), token(var_name))),
         |(constant, binary_op, var_name)| {
             Condition::Binary(BinaryCondition {
                 var_name,
@@ -68,11 +64,7 @@ fn condition_binary_lhs(input: &str) -> IResult<Condition> {
 
 fn condition_binary_rhs(input: &str) -> IResult<Condition> {
     map(
-        tuple((
-            terminated(var_name, whitespace),
-            terminated(binary_op, whitespace),
-            terminated(number, whitespace),
-        )),
+        tuple((token(var_name), token(binary_op), token(number))),
         |(var_name, binary_op, constant)| {
             Condition::Binary(BinaryCondition {
                 var_name,
@@ -86,11 +78,7 @@ fn condition_binary_rhs(input: &str) -> IResult<Condition> {
 
 fn condition_interval(input: &str) -> IResult<Condition> {
     map(
-        tuple((
-            terminated(var_name, whitespace),
-            terminated(interval_op, whitespace),
-            terminated(interval, whitespace),
-        )),
+        tuple((token(var_name), token(interval_op), token(interval))),
         |(var_name, interval_op, interval)| {
             Condition::Interval(IntervalCondition {
                 var_name,
@@ -115,13 +103,13 @@ fn condition(input: &str) -> IResult<Condition> {
 }
 
 fn raw_expression(input: &str) -> IResult<ConditionsNode> {
-    let (input, condition) = terminated(condition, whitespace)(input)?;
+    let (input, condition) = token(condition)(input)?;
 
     Ok((input, ConditionsNode::Expression(condition)))
 }
 
 fn negated(input: &str) -> IResult<ConditionsNode> {
-    let (input, _) = terminated(char('!'), whitespace)(input)?;
+    let (input, _) = token_lit("!")(input)?;
     let (input, node) = parenthesized(conditions)(input)?;
 
     Ok((input, ConditionsNode::Negated(Box::new(node))))
@@ -138,7 +126,7 @@ fn and_condition(input: &str) -> IResult<ConditionsNode> {
     alt((
         |input| {
             let (input, left) = expression(input)?;
-            let (input, op) = terminated(value(BoolOp::And, tag("&&")), whitespace)(input)?;
+            let (input, op) = value(BoolOp::And, token_lit("&&"))(input)?;
             let (input, right) = and_condition(input)?;
 
             Ok((
@@ -158,7 +146,7 @@ fn or_condition(input: &str) -> IResult<ConditionsNode> {
     alt((
         |input| {
             let (input, left) = and_condition(input)?;
-            let (input, op) = terminated(value(BoolOp::Or, tag("||")), whitespace)(input)?;
+            let (input, op) = value(BoolOp::Or, token_lit("||"))(input)?;
             let (input, right) = or_condition(input)?;
 
             Ok((
