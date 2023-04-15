@@ -3,16 +3,17 @@
     // clippy::restriction,
     // clippy::pedantic,
     clippy::nursery,
-    clippy::cargo
+    // clippy::cargo
 )]
 
-use gpt_common::dto::NTupleSingleInterval;
-use gpt_common::graph_reduction::{create_graph, MONKE::run_MONKE};
-use gpt_common::test_case_generator::generate_test_cases_for_multiple_features;
-use gpt_common::{generate_tests_for_gpt_input, parser};
+use gpt_common::{
+    dto::NTupleSingleInterval,
+    generate_tests_for_gpt_input,
+    graph_reduction::{create_graph, monke::run_monke},
+};
 
 pub fn main() {
-    let input1 = r#"
+    let _input1 = r#"
         var VIP: bool
         var price: num
         var second_hand_price: num
@@ -25,7 +26,7 @@ pub fn main() {
         if(price > 30 && second_hand_price > 60)
     "#;
 
-    let input2 = r#"
+    let _input2 = r#"
     [
         var heat: int
         var is_contaminated: bool
@@ -48,7 +49,7 @@ pub fn main() {
         if((x == 0 || y == 0) || (x == 1 || y == 1))
     "#;
 
-    let input4 = r#"
+    let _input4 = r#"
 var x: num
 var y: num
 
@@ -66,7 +67,7 @@ else {}
     println!("Number of test cases: {}", test_cases.len());
 
     let ntuple_graph = create_graph(&test_cases);
-    let monked_graph = run_MONKE(&ntuple_graph);
+    let monked_graph = run_monke(&ntuple_graph);
     let monked_test_cases = monked_graph
         .node_weights()
         .cloned()

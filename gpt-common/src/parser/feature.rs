@@ -1,14 +1,13 @@
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    combinator::{cut, eof, map},
-    error::VerboseError,
+    combinator::{cut, map},
     multi::many1,
     sequence::terminated,
 };
 
 use super::{
-    ast::{FeatureNode, IfNode, RootNode, VarNode},
+    ast::{FeatureNode, IfNode, VarNode},
     if_statement::if_statement,
     utils::whitespace,
     var_declaration::var_declaration,
@@ -68,8 +67,6 @@ mod tests {
     #[test]
     #[ignore = "todo"]
     fn test_feature() {
-        todo!("TODO: Make this test pass");
-
         let input = r#"
         [
             var VIP: bool 

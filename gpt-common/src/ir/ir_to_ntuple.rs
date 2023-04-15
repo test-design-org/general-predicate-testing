@@ -106,7 +106,7 @@ fn convert_predicate_to_ntuple(
                                         interval: new,
                                         ..
                                     })),
-                                ) => old.intersect(&new).map(|intersection| {
+                                ) => old.intersect(new).map(|intersection| {
                                     Condition::Interval(IntervalCondition {
                                         interval: intersection,
                                         var_name: var_name.to_owned(),

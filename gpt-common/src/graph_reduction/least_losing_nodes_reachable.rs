@@ -1,11 +1,13 @@
-use petgraph::{prelude::NodeIndex, prelude::UnGraph, visit::Bfs};
-
-use crate::{
-    dto::{NTupleInput, NTupleOutput, NTupleSingleInterval},
-    graph_reduction::{common::join_nodes_on_edge, create_graph_url},
+use petgraph::{
+    prelude::{NodeIndex, UnGraph},
+    visit::Bfs,
 };
 
 use super::{common::clone_with_different_edge_type, NTupleGraph};
+use crate::{
+    dto::NTupleSingleInterval,
+    graph_reduction::{common::join_nodes_on_edge, create_graph_url},
+};
 
 fn nodes_reachable(graph: &UnGraph<NTupleSingleInterval, usize>, start_node: NodeIndex) -> usize {
     let mut bfs = Bfs::new(graph, start_node);

@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 
-use itertools::Itertools;
-
-use crate::bva::Bva;
-use crate::dto::{BoolDTO, BoolExpression, NTupleOutput, NTupleSingleInterval, Output};
-use crate::interval::{Interval, MultiInterval};
-use crate::util::UniquesVec;
-
 use crate::{
-    dto::{Input, IntervalDTO, NTupleInput},
-    interval::IntervalError,
+    bva::Bva,
+    dto::{
+        BoolDTO, BoolExpression, Input, IntervalDTO, NTupleInput, NTupleOutput,
+        NTupleSingleInterval, Output,
+    },
+    interval::{IntervalError, MultiInterval},
+    util::UniquesVec,
 };
 
 pub fn generate_test_cases_for_multiple_features(
@@ -225,23 +223,22 @@ fn off_out(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
-    use pretty_assertions::assert_eq;
     use std::collections::HashMap;
 
-    use crate::dto::tests::create_ntuple_single_interval;
-    use crate::dto::tests::{create_ntuple_input, create_ntuple_output};
-    use crate::dto::NTupleSingleInterval;
-    use crate::interval::test::{int, multiint};
-    use crate::interval::{Interval, MultiInterval};
-    use crate::{
-        dto::{BoolDTO, BoolExpression, Expression, Input, IntervalDTO, Output},
-        interval::Boundary,
-    };
-
+    use pretty_assertions::assert_eq;
     use Boundary::Open;
 
     use super::{generate_test_cases_for_inputs, ntuple_multi_cartesian_product};
+    use crate::{
+        dto::{
+            tests::{create_ntuple_input, create_ntuple_output, create_ntuple_single_interval},
+            BoolDTO, BoolExpression, Input, IntervalDTO, NTupleSingleInterval, Output,
+        },
+        interval::{
+            test::{int, multiint},
+            Boundary, Interval, MultiInterval,
+        },
+    };
 
     #[test]
     fn test_all_possible_combinations() {

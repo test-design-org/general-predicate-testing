@@ -132,13 +132,15 @@ mod tests {
         // TODO
     }
 
-    // #[test]
+    #[test]
+    #[ignore = "todo"]
     fn test_else_if_statement() {
         // TODO
         todo!()
     }
 
-    // #[test]
+    #[test]
+    #[ignore = "todo"]
     fn test_else_statement() {
         // TODO
         todo!()

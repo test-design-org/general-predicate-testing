@@ -1,17 +1,14 @@
-pub mod MONKE;
 mod common;
 pub mod least_losing_components;
 pub mod least_losing_nodes_reachable;
+pub mod monke;
 
 use std::fmt::Debug;
 
 use petgraph::{dot::Dot, prelude::UnGraph};
 use urlencoding::encode;
 
-use crate::{
-    dto::{NTupleOutput, NTupleSingleInterval},
-    interval::Intersectable,
-};
+use crate::{dto::NTupleSingleInterval, interval::Intersectable};
 
 pub type NTupleGraph = UnGraph<NTupleSingleInterval, ()>;
 
@@ -51,7 +48,7 @@ where
     E: Debug,
 {
     let dot_string = format!("{:?}", Dot::with_config(&graph, &[]));
-    let encoded_dot_string = encode(&dot_string).replace(' ', "%20");
+    let _encoded_dot_string = encode(&dot_string).replace(' ', "%20");
 
     // "https://dreampuf.github.io/GraphvizOnline/#".to_owned() + &encoded_dot_string
     dot_string

@@ -1,4 +1,4 @@
-use petgraph::{prelude::NodeIndex, prelude::UnGraph};
+use petgraph::prelude::{NodeIndex, UnGraph};
 
 use crate::{dto::NTupleSingleInterval, interval::Intersectable};
 
@@ -50,7 +50,7 @@ where
         .intersect(graph.node_weight(b).unwrap())
         .unwrap();
 
-    let joined_ntuple_index = replace_nodes(graph, a, b, joined_ntuple.clone());
+    let joined_ntuple_index = replace_nodes(graph, a, b, joined_ntuple);
 
     joined_ntuple_index
 }

@@ -212,9 +212,9 @@ impl fmt::Debug for Predicate {
 
 #[cfg(test)]
 mod test {
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
 
-    use super::{BoolCondition, Condition, IntervalCondition, Predicate};
+    use super::{Condition, IntervalCondition, Predicate};
     use crate::{interval::test::multiint, parser::ast::BoolOp};
 
     fn cond<'a>(var_name: &'a str, interval: &'a str) -> Condition {

@@ -1,6 +1,5 @@
-use dto::{NTupleOutput, NTupleSingleInterval};
-use nom::error::convert_error;
-use nom::Err;
+use dto::NTupleSingleInterval;
+use nom::{error::convert_error, Err};
 use parser::parse_gpt_to_features;
 use prelude::{GPTError, Result};
 use test_case_generator::generate_test_cases_for_multiple_features;

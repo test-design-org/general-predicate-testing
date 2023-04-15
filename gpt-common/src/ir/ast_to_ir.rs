@@ -165,7 +165,7 @@ fn convert_variable<'a>(var_node: &'a ast::VarNode) -> ir::Variable {
     }
 }
 
-fn traverse_feature_node<'a>(feature_node: &'a ast::FeatureNode) -> ir::Feature {
+fn traverse_feature_node(feature_node: &ast::FeatureNode) -> ir::Feature {
     let variables = feature_node
         .variables
         .iter()

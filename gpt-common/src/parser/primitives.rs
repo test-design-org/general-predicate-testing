@@ -15,7 +15,7 @@ use nom::{
 };
 
 use super::{
-    ast::{BinaryOp, BoolOp, EqOp, IntervalOp},
+    ast::{BinaryOp, EqOp, IntervalOp},
     IResult,
 };
 use crate::interval::{Boundary, MultiInterval};
@@ -92,13 +92,6 @@ pub fn binary_op(input: &str) -> IResult<BinaryOp> {
             value(BinaryOp::GreaterThan, tag(">")),
             value(BinaryOp::Equal, tag("==")),
         )),
-    )(input)
-}
-
-fn bool_op(input: &str) -> IResult<BoolOp> {
-    context(
-        "Boolean Operator",
-        alt((value(BoolOp::And, tag("&&")), value(BoolOp::Or, tag("||")))),
     )(input)
 }
 
@@ -266,12 +259,6 @@ mod tests {
         assert_eq!(binary_op("<"), Ok(("", BinaryOp::LessThan)));
         assert_eq!(binary_op(">"), Ok(("", BinaryOp::GreaterThan)));
         assert!(binary_op("other").is_err());
-    }
-
-    #[test]
-    fn test_bool_op() {
-        assert_eq!(bool_op("&&"), Ok(("", BoolOp::And)));
-        assert!(bool_op("other").is_err());
     }
 
     #[test]

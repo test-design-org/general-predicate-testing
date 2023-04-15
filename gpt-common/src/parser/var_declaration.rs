@@ -69,10 +69,6 @@ pub fn var_declaration(input: &str) -> IResult<VarNode> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
     #[test]
     #[ignore = "todo"]
     fn test_parse_float_type() {

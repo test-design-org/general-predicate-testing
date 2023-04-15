@@ -55,10 +55,6 @@ pub fn parse_gpt_to_features(input: &str) -> IResult<Vec<Vec<NTupleInput>>> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
     #[test]
     #[ignore = "todo"]
     fn test_root() {

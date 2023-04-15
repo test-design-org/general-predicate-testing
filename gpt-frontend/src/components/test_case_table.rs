@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use gpt_common::{
-    dto::{NTupleOutput, NTupleSingleInterval, Output},
-    interval::{Interval, MultiInterval},
+    dto::{NTupleSingleInterval, Output},
+    interval::Interval,
     test_value_generator::generate_test_value,
 };
 use yew::prelude::*;
