@@ -36,12 +36,16 @@ fn else_if_statement(input: &str) -> IResult<ElseIfNode> {
 fn else_statement(input: &str) -> IResult<ElseNode> {
     context("else statement", |input| {
         let (input, _) = token_lit("else")(input)?;
-        let (input, _) = token_lit("{")(input)?;
-        let (input, if_statements) = many0(if_statement)(input)?;
-        let (input, _) = token_lit("}")(input)?;
+        let (input, if_statements) = opt(|input| {
+            let (input, _) = token_lit("{")(input)?;
+            let (input, if_statements) = many0(if_statement)(input)?;
+            let (input, _) = token_lit("}")(input)?;
+
+            Ok((input, if_statements))
+        })(input)?;
 
         let else_node = ElseNode {
-            body: if_statements,
+            body: if_statements.unwrap_or_default(),
         };
 
         Ok((input, else_node))

@@ -69,6 +69,7 @@ pub fn manual_tester() -> Html {
                     let reduced_test_cases = reduced_graph
                         .node_weights()
                         .cloned()
+                        .map(|x| *x)
                         .collect::<Vec<NTupleSingleInterval>>();
 
                     generated_state.set(Some(Ok(reduced_test_cases)));

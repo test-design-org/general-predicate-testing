@@ -1,7 +1,5 @@
 use nom::{
     branch::alt,
-    bytes::complete::tag,
-    character::streaming::char,
     combinator::{cut, map, value},
     error::context,
     sequence::{terminated, tuple},

@@ -1,4 +1,9 @@
-use std::{cmp::Ordering, fmt};
+use std::{
+    cmp::Ordering,
+    fmt::{self, format},
+};
+
+use serde::{Serialize, Serializer};
 
 pub trait Intersectable {
     fn intersects_with(&self, other: &Self) -> bool;
@@ -164,18 +169,40 @@ impl fmt::Display for Interval {
             Boundary::Open => "(",
             Boundary::Closed => "[",
         };
+
+        let lo = if self.lo == f32::NEG_INFINITY {
+            "-Inf".to_owned()
+        } else {
+            self.lo.to_string()
+        };
+
+        let hi = if self.hi == f32::INFINITY {
+            "Inf".to_owned()
+        } else {
+            self.hi.to_string()
+        };
+
         let hi_boundary = match self.hi_boundary {
             Boundary::Open => ")",
             Boundary::Closed => "]",
         };
 
-        write!(f, "{}{}, {}{}", lo_boundary, self.lo, self.hi, hi_boundary)
+        write!(f, "{}{}, {}{}", lo_boundary, lo, hi, hi_boundary)
     }
 }
 
 impl fmt::Debug for Interval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+impl Serialize for Interval {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(self)
     }
 }
 
@@ -415,6 +442,15 @@ impl fmt::Display for MultiInterval {
     }
 }
 
+impl Serialize for MultiInterval {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(self)
+    }
+}
+
 impl fmt::Debug for MultiInterval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
@@ -446,10 +482,10 @@ pub(crate) mod test {
     use nom::{combinator::complete, multi::many0};
     use pretty_assertions::assert_eq;
     use rstest::rstest;
+    use Ordering::{Equal, Greater, Less};
 
     use super::{Intersectable, Interval, MultiInterval};
     use crate::parser::interval;
-    use Ordering::{Equal, Greater, Less};
 
     pub fn int(input: &str) -> Interval {
         let (_, x) = interval(input).unwrap();

@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{dto::NTupleSingleInterval, graph_reduction::create_graph_url};
 
-fn evaluate_edges_component_count(graph: &mut UnGraph<NTupleSingleInterval, usize>) {
+fn evaluate_edges_component_count(graph: &mut NTupleGraph<usize>) {
     let initial_component_count = connected_components(&*graph);
     for edge_index in graph.edge_indices() {
         let mut working_graph = graph.clone();
@@ -26,8 +26,11 @@ fn evaluate_edges_component_count(graph: &mut UnGraph<NTupleSingleInterval, usiz
     );
 }
 
-pub fn run_least_losing_components(graph: &NTupleGraph) -> NTupleGraph {
-    let mut graph: UnGraph<NTupleSingleInterval, usize> = clone_with_different_edge_type(graph);
+pub fn run_least_losing_components<E>(graph: &NTupleGraph<E>) -> NTupleGraph<E>
+where
+    E: Default,
+{
+    let mut graph = clone_with_different_edge_type::<E, usize>(graph);
 
     while graph.edge_count() > 0 {
         evaluate_edges_component_count(&mut graph);

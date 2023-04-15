@@ -6,64 +6,48 @@
     // clippy::cargo
 )]
 
+use clap::Parser;
 use gpt_common::{
     dto::NTupleSingleInterval,
     generate_tests_for_gpt_input,
     graph_reduction::{create_graph, monke::run_monke},
 };
 
-pub fn main() {
-    let _input1 = r#"
-        var VIP: bool
-        var price: num
-        var second_hand_price: num
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
 
-        if(VIP == true &&  price < 50) {
-            if(second_hand_price == 2)
-        }
-        if(VIP == false &&  price >= 50)
-        if(VIP == true &&  price >= 50)
-        if(price > 30 && second_hand_price > 60)
-    "#;
+#[derive(Parser, Debug)]
+enum Command {
+    Run(Run),
+}
 
-    let _input2 = r#"
-    [
-        var heat: int
-        var is_contaminated: bool
-        var copper: num
+/// Read the input GPT file and generate test cases
+#[derive(Parser, Debug)]
+struct Run {
+    /// Don't print the generated test cases
+    #[arg(long)]
+    no_show: bool,
 
-        if(heat in [2600,2650] && is_contaminated == false && copper == 8.8)
-    ]
-    [
-        var is_copper_melted: bool
-        var tin: num
-        var is_contaminated: bool
-        if(is_contaminated == false && is_copper_melted == true && tin == 2.2)
-    ]
-    "#;
+    /// Input GPT file path
+    file_path: String,
+}
 
-    let input3 = r#"
-        var x: num
-        var y: num
+fn run(_cli: &Cli, cmd: &Run) -> Result<(), Box<dyn std::error::Error>> {
+    let input = std::fs::read_to_string(&cmd.file_path)
+        .map_err(|e| format!("Error while reading file {}: {}", &cmd.file_path, e))?;
 
-        if((x == 0 || y == 0) || (x == 1 || y == 1))
-    "#;
+    let test_cases = generate_tests_for_gpt_input(&input)?;
 
-    let _input4 = r#"
-var x: num
-var y: num
-
-if(x == 0 && y == 0)
-else if(x == 420)
-else {}
-    "#;
-
-    let test_cases = match generate_tests_for_gpt_input(input3) {
-        Ok(test_cases) => test_cases,
-        Err(e) => panic!("Error: {}", e),
-    };
-
-    println!("{:#?}", test_cases);
+    let test_cases_json = serde_json::to_string(&test_cases)?;
+    println!("Test cases:");
+    if !cmd.no_show {
+        println!("{}", test_cases_json);
+    }
     println!("Number of test cases: {}", test_cases.len());
 
     let ntuple_graph = create_graph(&test_cases);
@@ -71,9 +55,48 @@ else {}
     let monked_test_cases = monked_graph
         .node_weights()
         .cloned()
+        .map(|x| *x)
         .collect::<Vec<NTupleSingleInterval>>();
 
-    println!("After running MONKE:");
-    println!("{:#?}", monked_test_cases);
+    let monke_json = serde_json::to_string(&monked_test_cases)?;
+
+    println!("\nAfter running MONKE:");
+    if !cmd.no_show {
+        println!("{}", monke_json);
+    }
     println!("Number of test cases: {}", monked_test_cases.len());
+
+    Ok(())
+}
+
+pub fn main() {
+    let args = Cli::parse();
+
+    let result = match &args.command {
+        Command::Run(cmd) => run(&args, cmd),
+    };
+
+    match result {
+        Ok(_) => (),
+        Err(e) => println!("{}", e),
+    }
+
+    // let test_cases = match generate_tests_for_gpt_input(input3) {
+    //     Ok(test_cases) => test_cases,
+    //     Err(e) => panic!("Error: {}", e),
+    // };
+
+    // println!("{:#?}", test_cases);
+    // println!("Number of test cases: {}", test_cases.len());
+
+    // let ntuple_graph = create_graph(&test_cases);
+    // let monked_graph = run_monke(&ntuple_graph);
+    // let monked_test_cases = monked_graph
+    //     .node_weights()
+    //     .cloned()
+    //     .collect::<Vec<NTupleSingleInterval>>();
+
+    // println!("After running MONKE:");
+    // println!("{:#?}", monked_test_cases);
+    // println!("Number of test cases: {}", monked_test_cases.len());
 }

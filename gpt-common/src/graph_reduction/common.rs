@@ -1,15 +1,16 @@
-use petgraph::prelude::{NodeIndex, UnGraph};
+use petgraph::prelude::NodeIndex;
 
+use super::NTupleGraph;
 use crate::{dto::NTupleSingleInterval, interval::Intersectable};
 
-pub fn replace_nodes<T>(
-    graph: &mut UnGraph<NTupleSingleInterval, T>,
+pub fn replace_nodes<E>(
+    graph: &mut NTupleGraph<E>,
     a: NodeIndex,
     b: NodeIndex,
     new_ntuple: NTupleSingleInterval,
 ) -> NodeIndex
 where
-    T: Default + Clone,
+    E: Default + Clone,
 {
     let adjacens_nodes = graph
         .neighbors(a)
@@ -17,12 +18,12 @@ where
         .filter(|node_index| *node_index != a && *node_index != b)
         .collect::<Vec<NodeIndex>>();
 
-    let ntuple_index = graph.add_node(new_ntuple.clone());
+    let ntuple_index = graph.add_node(Box::new(new_ntuple.clone()));
 
     for node_index in adjacens_nodes {
         let node = graph.node_weight(node_index).unwrap();
         if new_ntuple.intersects_with(node) {
-            graph.add_edge(ntuple_index, node_index, T::default());
+            graph.add_edge(ntuple_index, node_index, E::default());
         }
     }
     graph.remove_node(a);
@@ -30,19 +31,15 @@ where
 
     let ntuple_index = graph
         .node_indices()
-        .find(|node_index| graph[*node_index] == new_ntuple)
+        .find(|node_index| *graph[*node_index] == new_ntuple)
         .expect("The recently added new ntuple should be in the graph");
 
     ntuple_index
 }
 
-pub fn join_nodes_on_edge<T>(
-    graph: &mut UnGraph<NTupleSingleInterval, T>,
-    a: NodeIndex,
-    b: NodeIndex,
-) -> NodeIndex
+pub fn join_nodes_on_edge<E>(graph: &mut NTupleGraph<E>, a: NodeIndex, b: NodeIndex) -> NodeIndex
 where
-    T: Default + Clone,
+    E: Default + Clone,
 {
     let joined_ntuple = graph
         .node_weight(a)
@@ -55,12 +52,11 @@ where
     joined_ntuple_index
 }
 
-pub fn clone_with_different_edge_type<N, EOld, ENew>(graph: &UnGraph<N, EOld>) -> UnGraph<N, ENew>
+pub fn clone_with_different_edge_type<EOld, ENew>(graph: &NTupleGraph<EOld>) -> NTupleGraph<ENew>
 where
-    N: Clone,
     ENew: Default,
 {
-    let mut new_graph = UnGraph::<N, ENew>::default();
+    let mut new_graph = NTupleGraph::<ENew>::default();
 
     for node in graph.node_weights() {
         new_graph.add_node(node.clone());

@@ -1,8 +1,9 @@
-use std::fmt::Debug;
 use std::{
     collections::{HashMap, HashSet},
-    fmt::Display,
+    fmt::{Debug, Display},
 };
+
+use serde::{Deserialize, Serialize};
 
 use crate::interval::{Intersectable, Interval, MultiInterval};
 
@@ -81,6 +82,22 @@ where
             }
             (Self::MissingVariable, Self::MissingVariable) => Some(Self::MissingVariable),
             (_, _) => None,
+        }
+    }
+}
+
+impl<T> Serialize for Output<T>
+where
+    T: Intersectable + Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::MissingVariable => serializer.serialize_none(),
+            Self::Bool(bool) => serializer.serialize_bool(*bool),
+            Self::Interval(interval) => interval.serialize(serializer),
         }
     }
 }

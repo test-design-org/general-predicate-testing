@@ -10,24 +10,18 @@ use urlencoding::encode;
 
 use crate::{dto::NTupleSingleInterval, interval::Intersectable};
 
-pub type NTupleGraph = UnGraph<NTupleSingleInterval, ()>;
+pub type NTupleGraph<E> = UnGraph<Box<NTupleSingleInterval>, E>;
 
-pub fn create_graph(ntuples: &[NTupleSingleInterval]) -> NTupleGraph {
-    let mut graph = UnGraph::<NTupleSingleInterval, ()>::new_undirected();
+pub fn create_graph(ntuples: &[NTupleSingleInterval]) -> NTupleGraph<()> {
+    let mut graph = NTupleGraph::<()>::new_undirected();
 
     for ntuple in ntuples.iter() {
-        graph.add_node(ntuple.clone());
+        graph.add_node(Box::new(ntuple.clone()));
     }
 
     for a in graph.node_indices() {
         for b in graph.node_indices() {
-            if a == b
-                || graph
-                    .edges_connecting(a, b)
-                    .chain(graph.edges_connecting(b, a))
-                    .count()
-                    > 0
-            {
+            if a == b || graph.find_edge(a, b).is_some() || graph.find_edge(b, a).is_some() {
                 continue;
             }
 
@@ -43,7 +37,7 @@ pub fn create_graph(ntuples: &[NTupleSingleInterval]) -> NTupleGraph {
     graph
 }
 
-pub fn create_graph_url<E>(graph: &UnGraph<NTupleSingleInterval, E>) -> String
+pub fn create_graph_url<E>(graph: &NTupleGraph<E>) -> String
 where
     E: Debug,
 {
