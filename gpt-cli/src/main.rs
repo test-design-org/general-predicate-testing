@@ -10,7 +10,10 @@ use clap::Parser;
 use gpt_common::{
     dto::NTupleSingleInterval,
     generate_tests_for_gpt_input,
-    graph_reduction::{create_graph, monke::run_monke},
+    graph_reduction::{
+        create_graph, least_losing_nodes_reachable::run_least_losing_edges_reachable,
+        monke::run_monke,
+    },
 };
 
 /// Simple program to greet a person
@@ -51,7 +54,14 @@ fn run(_cli: &Cli, cmd: &Run) -> Result<(), Box<dyn std::error::Error>> {
     println!("Number of test cases: {}", test_cases.len());
 
     let ntuple_graph = create_graph(&test_cases);
+
+    println!(
+        "Number of edges in initial graph: {}",
+        ntuple_graph.edge_count()
+    );
+
     let monked_graph = run_monke(&ntuple_graph);
+    // let monked_graph = run_least_losing_edges_reachable(&ntuple_graph);
     let monked_test_cases = monked_graph
         .node_weights()
         .cloned()

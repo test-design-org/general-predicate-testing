@@ -1,0 +1,12 @@
+/*
+
+Imagine a coordinate system. You have a point on the coordinate system with (x,y) coordinates.
+You should return true, when the point is above f(x) = 0 's line, else return false.
+
+*/
+
+var x: int
+var y: int
+
+if(y > 0)
+else

@@ -21,7 +21,7 @@ pub fn create_graph(ntuples: &[NTupleSingleInterval]) -> NTupleGraph<()> {
 
     for a in graph.node_indices() {
         for b in graph.node_indices() {
-            if a == b || graph.find_edge(a, b).is_some() || graph.find_edge(b, a).is_some() {
+            if a == b || graph.contains_edge(a, b) || graph.contains_edge(b, a) {
                 continue;
             }
 
