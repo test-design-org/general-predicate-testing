@@ -184,6 +184,7 @@ fn and_reduce(_cli: &Cli, cmd: &AndReduce) -> Result<(), Box<dyn std::error::Err
 
     for predicate in ir.into_iter().flat_map(|feature| feature.predicates) {
         println!("Predicate: {predicate}");
+        println!("Reduced predicate {:#?}", predicate.reduce());
         println!("Conjunction of conjunctions:");
         for conjunctions in predicate.conjunction_of_conditions() {
             println!("{}", conjunctions.iter().join(" && "));
