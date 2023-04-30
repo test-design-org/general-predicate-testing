@@ -197,6 +197,19 @@ fn off_out(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
                     output.push(base_bool_false);
                 }
             },
+            // Generate OFF+OUT combo if the interval is a single point
+            Input::Interval(IntervalDTO {
+                interval,
+                precision,
+                ..
+            }) if interval.is_single_point() => {
+                let mut base_off_out = base.clone();
+                base_off_out
+                    .outputs
+                    .insert(i.to_owned(), Output::Interval(interval.off_out(*precision)));
+
+                output.push(base_off_out);
+            }
             Input::Interval(IntervalDTO {
                 interval,
                 precision,

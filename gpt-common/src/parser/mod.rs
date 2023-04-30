@@ -41,6 +41,13 @@ fn root(input: &str) -> IResult<RootNode> {
     Ok((input, RootNode { features }))
 }
 
+pub fn parse_gpt_to_ir(input: &str) -> IResult<Vec<ir::Feature>> {
+    let (input, ast) = root(input)?;
+    let ir_features = ir::ast_to_ir::convert_ast_to_ir(&ast);
+
+    Ok((input, ir_features))
+}
+
 pub fn parse_gpt_to_features(input: &str) -> IResult<Vec<Vec<NTupleInput>>> {
     let (input, ast) = root(input)?;
     let ir_features = ir::ast_to_ir::convert_ast_to_ir(&ast);

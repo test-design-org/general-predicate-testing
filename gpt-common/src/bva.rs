@@ -11,8 +11,13 @@ where
 
     /// Possible not acceptable values except the first from the edges.
     ///
-    /// Example: `[1,10)` with a precision of `0.01` will the out intervals of `(-Inf,0.98] [10.01,Inf)`
+    /// Example: `[1,10)` with a precision of `0.01` will thave he out intervals of `(-Inf,0.98] [10.01,Inf)`
     fn out(&self, precision: f32) -> MultiInterval;
+
+    /// Possible not acceptable values. This is Off+Out.
+    ///
+    /// Example: `[1,10)` will have the off_out intervals of `(-Inf,0.99] [10,Inf)`
+    fn off_out(&self, precision: f32) -> MultiInterval;
 
     /// First acceptable values from the edges. There can be 0, 1, or 2 such points.
     ///
@@ -98,6 +103,42 @@ impl Bva for Interval {
         }
 
         MultiInterval::from_intervals(outs)
+    }
+
+    fn off_out(&self, precision: f32) -> MultiInterval {
+        let mut off_outs = Vec::new();
+
+        if self.lo != f32::NEG_INFINITY {
+            let off_out_lo = Interval::new_closed(
+                f32::NEG_INFINITY,
+                self.lo
+                    - if self.lo_boundary == Boundary::Open {
+                        0.0
+                    } else {
+                        1.0
+                    } * precision,
+            )
+            .expect("Should be a valid interval");
+
+            off_outs.push(off_out_lo);
+        }
+
+        if self.hi != f32::INFINITY {
+            let off_out_hi = Interval::new_closed(
+                self.hi
+                    + if self.hi_boundary == Boundary::Open {
+                        0.0
+                    } else {
+                        1.0
+                    } * precision,
+                f32::INFINITY,
+            )
+            .expect("Should be a valid interval");
+
+            off_outs.push(off_out_hi);
+        }
+
+        MultiInterval::from_intervals(off_outs)
     }
 
     fn on(&self, precision: f32) -> MultiInterval {
@@ -210,6 +251,10 @@ impl Bva for MultiInterval {
         self.bva_all_intervals(precision, Interval::out)
     }
 
+    fn off_out(&self, precision: f32) -> MultiInterval {
+        self.bva_all_intervals(precision, Interval::off_out)
+    }
+
     fn on(&self, precision: f32) -> MultiInterval {
         self.bva_all_intervals(precision, Interval::on)
     }
@@ -225,10 +270,11 @@ impl Bva for MultiInterval {
 
 #[cfg(test)]
 mod test {
-    use super::Bva;
-    use crate::interval::{Interval, MultiInterval};
     use pretty_assertions::assert_eq;
     use rstest::rstest;
+
+    use super::Bva;
+    use crate::interval::{Interval, MultiInterval};
 
     #[rstest]
     // Correct In calculation for the boundaries

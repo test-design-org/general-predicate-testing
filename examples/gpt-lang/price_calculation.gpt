@@ -2,9 +2,9 @@ var VIP: bool
 var price: num
 var second_hand_price: num
 
-if(VIP == true &&  price < 50) {
+if(VIP == true && price < 50) {
     if(second_hand_price == 2)
 }
-if(VIP == false &&  price >= 50)
-if(VIP == true &&  price >= 50)
+if(VIP == false && price >= 50)
+if(VIP == true && price >= 50)
 if(price > 30 && second_hand_price > 60)

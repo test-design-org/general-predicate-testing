@@ -22,7 +22,7 @@ fn binary_op_to_interval(binop: &BinaryOp, num: f32) -> MultiInterval {
     use Boundary::{Closed, Open};
 
     match binop {
-        BinaryOp::NotEqual => MultiInterval::new_closed_point(num).inverse(),
+        BinaryOp::NotEqual => MultiInterval::new_closed_point(num).complement(),
         x => {
             let (lo_boundary, lo, hi, hi_boundary) = match x {
                 BinaryOp::LessThan => (Open, f32::NEG_INFINITY, num, Open),
@@ -68,7 +68,7 @@ fn convert_interval_condition(cond: &ast::IntervalCondition) -> ir::Condition {
         var_name: cond.var_name.to_owned(),
         interval: match cond.interval_op {
             ast::IntervalOp::In => cond.interval.clone(),
-            ast::IntervalOp::NotIn => cond.interval.inverse(),
+            ast::IntervalOp::NotIn => cond.interval.complement(),
         },
     })
 }

@@ -9,6 +9,7 @@ edition = "2021"
 clap = { version = "4.2.2", features = ["derive"] }
 gpt-common = { path = '../gpt-common' }
 serde_json = "1.0.96"
+itertools = { version = "0.10.5", features = ["use_std"] }
 
 [profile.release]
 debug = true

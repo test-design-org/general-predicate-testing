@@ -43,6 +43,20 @@ impl Condition {
     }
 }
 
+impl fmt::Display for Condition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Condition::Bool(BoolCondition {
+                var_name,
+                should_equal_to,
+            }) => write!(f, "{var_name} == {should_equal_to}"),
+            Condition::Interval(IntervalCondition { var_name, interval }) => {
+                write!(f, "{var_name} in {interval}")
+            }
+        }
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub enum Predicate {
     Negated(Box<Predicate>),
@@ -66,7 +80,7 @@ impl Predicate {
                 Condition::Interval(cond) => {
                     Self::Expression(Condition::Interval(IntervalCondition {
                         var_name: cond.var_name.clone(),
-                        interval: cond.interval.inverse(),
+                        interval: cond.interval.complement(),
                     }))
                 }
             },
@@ -109,21 +123,34 @@ impl Predicate {
                         .collect()
                 }
                 BoolOp::Or => {
-                    let left_ands = left.as_ref().to_ands();
+                    let mut left_ands = left.as_ref().to_ands();
                     let left_negated = left.as_ref().negated();
-                    let right_ands = right.as_ref().to_ands();
+                    let mut right_ands = right.as_ref().to_ands();
+                    let right_negated = right.as_ref().negated();
 
                     let mut left_negated_and_right_ands = right_ands
-                        .into_iter()
+                        .iter()
                         .map(|right| Predicate::Group {
                             left: Box::new(left_negated.clone()),
-                            right: Box::new(right),
+                            right: Box::new(right.clone()),
                             operator: BoolOp::And,
                         })
                         .collect();
 
-                    let mut result = left_ands;
+                    let mut right_negated_and_left_ands = left_ands
+                        .iter()
+                        .map(|left| Predicate::Group {
+                            left: Box::new(left.clone()),
+                            right: Box::new(right_negated.clone()),
+                            operator: BoolOp::And,
+                        })
+                        .collect();
+
+                    let mut result = Vec::new();
+                    result.append(&mut left_ands);
                     result.append(&mut left_negated_and_right_ands);
+                    result.append(&mut right_ands);
+                    result.append(&mut right_negated_and_left_ands);
 
                     result
                 }

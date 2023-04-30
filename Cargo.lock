@@ -484,6 +484,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "gpt-common",
+ "itertools",
  "serde_json",
 ]
 

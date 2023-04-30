@@ -100,6 +100,12 @@ impl Interval {
             && (self.lo_boundary == Boundary::Open || self.hi_boundary == Boundary::Open)
     }
 
+    pub fn is_single_point(&self) -> bool {
+        self.lo == self.hi
+            && self.lo_boundary == Boundary::Closed
+            && self.hi_boundary == Boundary::Closed
+    }
+
     fn lo_cmp(&self, other: &Self) -> Ordering {
         match self.lo.partial_cmp(&other.lo).unwrap() {
             std::cmp::Ordering::Equal => match (self.lo_boundary, other.lo_boundary) {
@@ -121,6 +127,43 @@ impl Interval {
                 (Boundary::Closed, Boundary::Closed) => std::cmp::Ordering::Equal,
             },
             x => x,
+        }
+    }
+
+    pub fn complement(&self) -> MultiInterval {
+        if self.is_empty() {
+            return MultiInterval {
+                intervals: vec![Interval {
+                    lo_boundary: Boundary::Open,
+                    lo: f32::NEG_INFINITY,
+                    hi: f32::INFINITY,
+                    hi_boundary: Boundary::Open,
+                }],
+            };
+        }
+
+        let mut new_intervals = Vec::new();
+
+        if self.lo != f32::NEG_INFINITY {
+            new_intervals.push(Interval {
+                lo_boundary: Boundary::Open,
+                lo: f32::NEG_INFINITY,
+                hi: self.lo,
+                hi_boundary: self.lo_boundary.inverse(),
+            })
+        }
+
+        if self.hi != f32::INFINITY {
+            new_intervals.push(Interval {
+                lo_boundary: self.hi_boundary.inverse(),
+                lo: self.hi,
+                hi: f32::INFINITY,
+                hi_boundary: Boundary::Open,
+            })
+        }
+
+        MultiInterval {
+            intervals: new_intervals,
         }
     }
 }
@@ -298,7 +341,11 @@ impl MultiInterval {
         self.intervals.is_empty()
     }
 
-    pub fn inverse(&self) -> Self {
+    pub fn is_single_point(&self) -> bool {
+        self.intervals.len() == 1 && self.intervals[0].is_single_point()
+    }
+
+    pub fn complement(&self) -> Self {
         if self.intervals.is_empty() {
             return Self {
                 intervals: vec![Interval {
@@ -809,7 +856,7 @@ pub(crate) mod test {
         #[case] expected: MultiInterval,
     ) {
         assert_eq!(
-            interval.inverse(),
+            interval.complement(),
             expected,
             "MultiInterval.invert failed: {interval}.inverse() should be {expected}",
         );
@@ -820,7 +867,7 @@ pub(crate) mod test {
         let input1 = multiint("[-42, 3) (3, 67) (100, 101) [205, 607] (700, Inf)");
 
         assert_eq!(
-            input1.inverse().inverse(),
+            input1.complement().complement(),
             input1,
             "The inverse of an inverse should be the original",
         );
@@ -830,11 +877,11 @@ pub(crate) mod test {
             "Intersecting something with (-Inf, Inf) should be the original"
         );
         assert!(
-            !input1.intersects_with(&input1.inverse()),
+            !input1.intersects_with(&input1.complement()),
             "An interval can't be intersected with its inverse"
         );
         assert_eq!(
-            input1.intersect(&input1.inverse()),
+            input1.intersect(&input1.complement()),
             None,
             "An interval can't be intersected with its inverse"
         );
