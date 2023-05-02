@@ -5,6 +5,7 @@ use crate::{
     dto::{BoolDTO, BoolExpression, Input, IntervalDTO, NTupleInput},
     interval::Intersectable,
     ir,
+    util::UniquesVec,
 };
 
 const fn convert_bool_dto(condition: &ir::BoolCondition) -> BoolDTO {
@@ -149,5 +150,6 @@ pub fn ir_to_ntuple(
         .clone()
         .iter()
         .flat_map(|predicate| convert_predicate_to_ntuple(variables, predicate))
-        .collect()
+        .collect::<Vec<_>>()
+        .uniques()
 }
