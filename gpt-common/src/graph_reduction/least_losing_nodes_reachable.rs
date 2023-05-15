@@ -22,7 +22,7 @@ fn nodes_reachable(graph: &NTupleGraph<usize>, start_node: NodeIndex) -> usize {
     count
 }
 
-fn evaluate_edges_edges_reachable_count(graph: &mut NTupleGraph<usize>) {
+fn evaluate_edges_nodes_reachable_count(graph: &mut NTupleGraph<usize>) {
     for edge_index in graph.edge_indices() {
         let mut working_graph = graph.clone();
         let (a, b) = working_graph
@@ -36,20 +36,21 @@ fn evaluate_edges_edges_reachable_count(graph: &mut NTupleGraph<usize>) {
         graph[edge_index] = initially_reachable - reachable_after_the_join;
     }
 
+    #[cfg(debug_assertions)]
     log::debug!(
         "Partial data, least losing edges reachable graph: \n\n{}",
         create_graph_url(&*graph)
     );
 }
 
-pub fn run_least_losing_edges_reachable<E>(graph: &NTupleGraph<E>) -> NTupleGraph<E>
+pub fn run_least_losing_nodes_reachable<E>(graph: &NTupleGraph<E>) -> NTupleGraph<E>
 where
     E: Default,
 {
     let mut graph = clone_with_different_edge_type::<E, usize>(graph);
 
     while graph.edge_count() > 0 {
-        evaluate_edges_edges_reachable_count(&mut graph);
+        evaluate_edges_nodes_reachable_count(&mut graph);
 
         let min_index = graph
             .edge_indices()

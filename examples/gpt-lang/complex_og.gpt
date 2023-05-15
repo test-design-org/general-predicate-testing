@@ -9,8 +9,8 @@ else
 
 
 if(x != 10 || y != 20)
-//else if(x != 2)
+else if(x != 2)
 // else if(x != 3 && y != 3 && z != 3)
 // else if(x != 4 && y != 4 && z != 4)
-//else
+else
 

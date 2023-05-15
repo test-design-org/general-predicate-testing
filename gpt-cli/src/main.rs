@@ -14,8 +14,11 @@ use gpt_common::{
     dto::NTupleSingleInterval,
     generate_tests_for_gpt_input,
     graph_reduction::{
-        create_graph, least_losing_components::run_least_losing_components,
-        least_losing_nodes_reachable::run_least_losing_edges_reachable, monke::run_monke,
+        create_graph,
+        least_losing_components::run_least_losing_components,
+        least_losing_edges::{run_least_losing_edges, run_most_losing_edges},
+        least_losing_nodes_reachable::run_least_losing_nodes_reachable,
+        monke::run_monke,
     },
     parser::parse_gpt_to_ir,
 };
@@ -60,8 +63,12 @@ enum Algo {
     None,
     /// MONKE
     Monke,
-    /// Least Losing Edges Reachable
+    /// Least Losing Nodes Reachable
+    Llnr,
+    /// Least Losing Edges
     Lle,
+    /// Most Losing Edges
+    Mle,
     /// Least Losing Components
     Llc,
 }
@@ -88,7 +95,9 @@ impl fmt::Display for Algo {
             match self {
                 Self::None => "None",
                 Self::Monke => "MONKE",
-                Self::Lle => "Least Losing Edges Reachable",
+                Self::Llnr => "Least Losing Nodes Reachable",
+                Self::Lle => "Least Losing Edges",
+                Self::Mle => "Most Losing Edges",
                 Self::Llc => "Least Losing Components",
             }
         )
@@ -157,7 +166,9 @@ fn run(_cli: &Cli, cmd: &Run) -> Result<(), Box<dyn std::error::Error>> {
     let reduced_graph = match cmd.algo {
         Algo::None => ntuple_graph,
         Algo::Monke => run_monke(&ntuple_graph),
-        Algo::Lle => run_least_losing_edges_reachable(&ntuple_graph),
+        Algo::Llnr => run_least_losing_nodes_reachable(&ntuple_graph),
+        Algo::Lle => run_least_losing_edges(&ntuple_graph),
+        Algo::Mle => run_most_losing_edges(&ntuple_graph),
         Algo::Llc => run_least_losing_components(&ntuple_graph),
     };
 

@@ -15,7 +15,7 @@ var age: int
 var service: int
 
 // R1
-if((age < 18 || age >= 60) || service >= 30)
+if(age < 18 || age >= 60 || service >= 30)
 /*
 // R1-2
 if(service >= 30 && age >= 60)

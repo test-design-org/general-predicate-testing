@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{dto::NTupleSingleInterval, graph_reduction::create_graph_url};
 
-fn evaluate_edges_component_count(graph: &mut NTupleGraph<usize>) {
+fn evaluate_edges_components_count(graph: &mut NTupleGraph<usize>) {
     let initial_component_count = connected_components(&*graph);
     for edge_index in graph.edge_indices() {
         let mut working_graph = graph.clone();
@@ -20,8 +20,9 @@ fn evaluate_edges_component_count(graph: &mut NTupleGraph<usize>) {
         graph[edge_index] = new_component_count - initial_component_count;
     }
 
+    #[cfg(debug_assertions)]
     log::debug!(
-        "Partial data, least losing component graph: \n\n{}",
+        "Partial data, least losing components graph: \n\n{}",
         create_graph_url(&*graph)
     );
 }
@@ -33,7 +34,7 @@ where
     let mut graph = clone_with_different_edge_type::<E, usize>(graph);
 
     while graph.edge_count() > 0 {
-        evaluate_edges_component_count(&mut graph);
+        evaluate_edges_components_count(&mut graph);
 
         let min_index = graph
             .edge_indices()

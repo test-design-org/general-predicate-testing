@@ -6,5 +6,5 @@ Profiling on MacOS can be done with [cargo-instruments](https://github.com/cmyr/
 
 Example profiling command:
 ```sh
-cargo instruments -t time run --no-show ../examples/gpt-lang/complex.gpt
+cargo instruments -t time --release run --no-show --algo none ../examples/gpt-lang/complex.gpt
 ```

@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use petgraph::prelude::NodeIndex;
 
 use super::NTupleGraph;
@@ -16,6 +17,7 @@ where
         .neighbors(a)
         .chain(graph.neighbors(b))
         .filter(|node_index| *node_index != a && *node_index != b)
+        // .unique() // TODO: In some examples if we disable it'll reduce more, which is weird
         .collect::<Vec<NodeIndex>>();
 
     let ntuple_index = graph.add_node(Box::new(new_ntuple.clone()));

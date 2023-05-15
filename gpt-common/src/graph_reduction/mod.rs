@@ -1,5 +1,6 @@
 mod common;
 pub mod least_losing_components;
+pub mod least_losing_edges;
 pub mod least_losing_nodes_reachable;
 pub mod monke;
 

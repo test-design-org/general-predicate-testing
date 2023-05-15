@@ -238,7 +238,7 @@ impl ReducedPredicate {
                 let all_possible_anded_form_of_the_or = disjuncted_conditions
                     .iter()
                     .permutations(disjuncted_conditions.len())
-                    .take(1) // TODO: REMOVEEE. What this does is basically ignore all the possible permutations of the or conditions
+                    // .take(1) // TODO: REMOVEEE. What this does is basically ignore all the possible permutations of the or conditions
                     .flat_map(|one_permuation| {
                         one_permuation
                             .continous_sublists_from_first()
