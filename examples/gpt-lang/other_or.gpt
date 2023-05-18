@@ -1,0 +1,5 @@
+var x: num
+var y: num
+var z: num
+
+if((y == true || z == true) && x == true)

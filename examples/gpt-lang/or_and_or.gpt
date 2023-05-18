@@ -1,0 +1,6 @@
+var a: num
+var b: num
+var c: num
+var d: num
+
+if((a == true || b == true) && (c == true || d == true))

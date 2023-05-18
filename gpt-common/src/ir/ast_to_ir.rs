@@ -112,7 +112,8 @@ fn traverse_if_node(if_node: &ast::IfNode) -> Vec<ir::Predicate> {
     let mut predicates_so_far = match &if_node.body {
         None => vec![initial_conditions],
         Some(body) if body.is_empty() => vec![initial_conditions],
-        Some(body) => traverse_body(body, initial_conditions),
+        // TODO: We need the initial conditions as well as the body.
+        Some(body) => traverse_body(body, initial_conditions), // TODO: the body of the if doesn't have to be negated onto the else ifs
     };
 
     for else_if_node in if_node.else_if.iter() {
