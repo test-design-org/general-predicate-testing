@@ -17,7 +17,7 @@ pub struct Variable {
     pub var_type: Type,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BoolCondition {
     pub var_name: String,
     pub should_equal_to: bool,
@@ -60,11 +60,11 @@ impl Condition {
 impl fmt::Display for Condition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Condition::Bool(BoolCondition {
+            Self::Bool(BoolCondition {
                 var_name,
                 should_equal_to,
             }) => write!(f, "{var_name} == {should_equal_to}"),
-            Condition::Interval(IntervalCondition { var_name, interval }) => {
+            Self::Interval(IntervalCondition { var_name, interval }) => {
                 write!(f, "{var_name} in {interval}")
             }
         }
@@ -83,7 +83,7 @@ pub enum Predicate {
 }
 
 impl Predicate {
-    pub fn negated(&self) -> Predicate {
+    pub fn negated(&self) -> Self {
         match self {
             Self::Negated(pred) => pred.as_ref().clone(),
             Self::Expression(cond) => Self::Expression(cond.negated()),
@@ -104,9 +104,9 @@ impl Predicate {
 
     pub fn reduce(&self) -> ReducedPredicate {
         match self {
-            Predicate::Negated(x) => x.as_ref().negated().reduce(),
-            Predicate::Expression(x) => ReducedPredicate::Expression(x.clone()),
-            Predicate::Group {
+            Self::Negated(x) => x.as_ref().negated().reduce(),
+            Self::Expression(x) => ReducedPredicate::Expression(x.clone()),
+            Self::Group {
                 left,
                 right,
                 operator: BoolOp::And,
@@ -118,11 +118,11 @@ impl Predicate {
                     match reduced_sub_predicate {
                         ReducedPredicate::Expression(x) => ands.push(x),
                         ReducedPredicate::And(Ands {
-                            conjugated_conditions,
-                            sub_ors,
+                            mut conjugated_conditions,
+                            mut sub_ors,
                         }) => {
-                            ands.append(&mut conjugated_conditions.clone());
-                            ors.append(&mut sub_ors.clone());
+                            ands.append(&mut conjugated_conditions);
+                            ors.append(&mut sub_ors);
                         }
                         ReducedPredicate::Or(or) => ors.push(or),
                     };
@@ -136,7 +136,7 @@ impl Predicate {
                     sub_ors: ors,
                 })
             }
-            Predicate::Group {
+            Self::Group {
                 left,
                 right,
                 operator: BoolOp::Or,
@@ -147,11 +147,11 @@ impl Predicate {
                     match reduced_sub_predicate {
                         ReducedPredicate::Expression(x) => ors.push(x),
                         ReducedPredicate::Or(Ors {
-                            disjuncted_conditions,
-                            sub_ands,
+                            mut disjuncted_conditions,
+                            mut sub_ands,
                         }) => {
-                            ors.append(&mut disjuncted_conditions.clone());
-                            ands.append(&mut sub_ands.clone());
+                            ors.append(&mut disjuncted_conditions);
+                            ands.append(&mut sub_ands);
                         }
                         ReducedPredicate::And(and) => ands.push(and),
                     };
@@ -207,7 +207,7 @@ impl ReducedPredicate {
 
                     let ands_from_ors: Vec<Vec<Vec<Condition>>> = sub_ors
                         .iter()
-                        .map(|ors| ReducedPredicate::Or(ors.clone()).to_ands())
+                        .map(|ors| Self::Or(ors.clone()).to_ands())
                         .collect();
 
                     for (a, b) in ands_from_ors.iter().tuple_combinations() {
@@ -270,7 +270,7 @@ impl ReducedPredicate {
                 } else {
                     let ands_from_ands: Vec<Vec<Vec<Condition>>> = sub_ands
                         .iter()
-                        .map(|and| ReducedPredicate::And(and.clone()).to_ands())
+                        .map(|and| Self::And(and.clone()).to_ands())
                         .collect();
 
                     all_possible_anded_form_of_the_or
@@ -344,7 +344,7 @@ pub struct Feature {
 impl fmt::Display for Predicate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Negated(pred) => write!(f, "!({})", pred),
+            Self::Negated(pred) => write!(f, "!({pred})"),
             Self::Expression(cond) => match cond {
                 Condition::Bool(cond) => write!(f, "{} == {}", cond.var_name, cond.should_equal_to),
                 Condition::Interval(cond) => write!(f, "{} in {}", cond.var_name, cond.interval),
@@ -369,10 +369,11 @@ impl fmt::Display for Predicate {
 
 impl fmt::Debug for Predicate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
+#[allow(dead_code)]
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;

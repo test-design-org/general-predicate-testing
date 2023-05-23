@@ -89,13 +89,13 @@ fn convert_predicate_to_ntuple(
                                         ..
                                     })),
                                 ) => {
-                                    if old != new {
-                                        None
-                                    } else {
+                                    if old == new {
                                         Some(Condition::Bool(BoolCondition {
                                             var_name: var_name.to_owned(),
                                             should_equal_to: *old,
                                         }))
+                                    } else {
+                                        None
                                     }
                                 }
                                 (
@@ -127,7 +127,7 @@ fn convert_predicate_to_ntuple(
                         .find(|variable| var_name.as_str() == variable.var_name)
                         // TODO: This should be an actual error in a Result type
                         .unwrap_or_else(|| {
-                            panic!("Undefined variable: {}", var_name)
+                            panic!("Undefined variable: {var_name}")
                         });
                     (
                         var_name,

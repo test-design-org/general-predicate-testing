@@ -23,7 +23,7 @@ pub fn generate_test_value(output: &Output<Interval>, show_interval_values: bool
         },
         Output::Interval(interval) => {
             if show_interval_values {
-                format!("{:?}", interval)
+                format!("{interval:?}")
             } else {
                 format!(
                     "{:?}",

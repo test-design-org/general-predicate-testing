@@ -7,7 +7,7 @@ pub fn replace_nodes<E>(
     graph: &mut NTupleGraph<E>,
     a: NodeIndex,
     b: NodeIndex,
-    new_ntuple: NTupleSingleInterval,
+    new_ntuple: &NTupleSingleInterval,
 ) -> NodeIndex
 where
     E: Default + Clone,
@@ -32,7 +32,7 @@ where
 
     let ntuple_index = graph
         .node_indices()
-        .find(|node_index| *graph[*node_index] == new_ntuple)
+        .find(|node_index| *graph[*node_index] == *new_ntuple)
         .expect("The recently added new ntuple should be in the graph");
 
     ntuple_index
@@ -48,7 +48,7 @@ where
         .intersect(graph.node_weight(b).unwrap())
         .unwrap();
 
-    let joined_ntuple_index = replace_nodes(graph, a, b, joined_ntuple);
+    let joined_ntuple_index = replace_nodes(graph, a, b, &joined_ntuple);
 
     joined_ntuple_index
 }

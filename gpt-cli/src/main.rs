@@ -5,6 +5,7 @@
     clippy::nursery,
     // clippy::cargo
 )]
+#![deny(clippy::let_and_return)]
 
 use core::fmt;
 

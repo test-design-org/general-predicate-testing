@@ -27,7 +27,7 @@ pub trait ContinousSublistsFromFirst<T> {
 }
 
 impl<T: PartialEq + Clone> ContinousSublistsFromFirst<T> for Vec<T> {
-    fn continous_sublists_from_first(&self) -> Vec<Vec<T>> {
+    fn continous_sublists_from_first(&self) -> Vec<Self> {
         (1..=self.len()).map(|n| self[0..n].to_vec()).collect()
     }
 }

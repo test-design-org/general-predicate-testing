@@ -16,7 +16,7 @@ where
 
     /// Possible not acceptable values. This is Off+Out.
     ///
-    /// Example: `[1,10)` will have the off_out intervals of `(-Inf,0.99] [10,Inf)`
+    /// Example: `[1,10)` will have the `off_out` intervals of `(-Inf,0.99] [10,Inf)`
     fn off_out(&self, precision: f32) -> MultiInterval;
 
     /// First acceptable values from the edges. There can be 0, 1, or 2 such points.
@@ -61,7 +61,7 @@ impl Bva for Interval {
             };
         }
 
-        match Interval::new_closed(lo, hi) {
+        match Self::new_closed(lo, hi) {
             Ok(in_interval) => MultiInterval::from_interval(in_interval),
             Err(IntervalError::LoIsGreaterThanHi) => MultiInterval {
                 intervals: Vec::new(),
@@ -73,7 +73,7 @@ impl Bva for Interval {
         let mut outs = Vec::new();
 
         if self.lo != f32::NEG_INFINITY {
-            let out_lo = Interval::new_closed(
+            let out_lo = Self::new_closed(
                 f32::NEG_INFINITY,
                 self.lo
                     - if self.lo_boundary == Boundary::Open {
@@ -88,7 +88,7 @@ impl Bva for Interval {
         }
 
         if self.hi != f32::INFINITY {
-            let out_hi = Interval::new_closed(
+            let out_hi = Self::new_closed(
                 self.hi
                     + if self.hi_boundary == Boundary::Open {
                         1.0
@@ -109,7 +109,7 @@ impl Bva for Interval {
         let mut off_outs = Vec::new();
 
         if self.lo != f32::NEG_INFINITY {
-            let off_out_lo = Interval::new_closed(
+            let off_out_lo = Self::new_closed(
                 f32::NEG_INFINITY,
                 self.lo
                     - if self.lo_boundary == Boundary::Open {
@@ -124,7 +124,7 @@ impl Bva for Interval {
         }
 
         if self.hi != f32::INFINITY {
-            let off_out_hi = Interval::new_closed(
+            let off_out_hi = Self::new_closed(
                 self.hi
                     + if self.hi_boundary == Boundary::Open {
                         0.0
@@ -151,7 +151,7 @@ impl Bva for Interval {
                 0.0
             } * precision;
         if self.contains_point(on_lo) {
-            ons.push(Interval::new_closed_point(on_lo));
+            ons.push(Self::new_closed_point(on_lo));
         }
 
         let on_hi = self.hi
@@ -162,7 +162,7 @@ impl Bva for Interval {
             } * precision;
 
         if self.contains_point(on_hi) {
-            ons.push(Interval::new_closed_point(on_hi));
+            ons.push(Self::new_closed_point(on_hi));
         }
 
         MultiInterval::from_intervals(ons)
@@ -185,7 +185,7 @@ impl Bva for Interval {
                 1.0
             } * precision;
 
-        match Interval::new_closed(lo, hi) {
+        match Self::new_closed(lo, hi) {
             Ok(inin) => MultiInterval::from_interval(inin),
             Err(IntervalError::LoIsGreaterThanHi) => MultiInterval {
                 intervals: Vec::new(),
@@ -197,7 +197,7 @@ impl Bva for Interval {
         let mut offs = Vec::new();
 
         if self.lo != f32::NEG_INFINITY {
-            let off_lo = Interval::new_closed_point(
+            let off_lo = Self::new_closed_point(
                 self.lo
                     - if self.lo_boundary == Boundary::Open {
                         0.0
@@ -210,7 +210,7 @@ impl Bva for Interval {
         }
 
         if self.hi != f32::INFINITY {
-            let off_hi = Interval::new_closed_point(
+            let off_hi = Self::new_closed_point(
                 self.hi
                     + if self.hi_boundary == Boundary::Open {
                         0.0
@@ -230,15 +230,15 @@ impl MultiInterval {
     fn bva_all_intervals(
         &self,
         precision: f32,
-        bva_function: impl Fn(&Interval, f32) -> MultiInterval,
-    ) -> MultiInterval {
+        bva_function: impl Fn(&Interval, f32) -> Self,
+    ) -> Self {
         let bar = self
             .intervals
             .iter()
             .flat_map(|interval| bva_function(interval, precision).intervals)
             .collect();
 
-        MultiInterval::from_intervals(bar)
+        Self::from_intervals(bar)
     }
 }
 

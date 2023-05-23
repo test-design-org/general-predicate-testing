@@ -8,6 +8,7 @@ use petgraph::{
 use super::{common::clone_with_different_edge_type, NTupleGraph};
 use crate::graph_reduction::common::join_nodes_on_edge;
 
+#[allow(dead_code)]
 fn disjunct_neighbours<E>(graph: &NTupleGraph<E>, a: NodeIndex, b: NodeIndex) -> Vec<NodeIndex>
 where
     E: Default + Clone,
@@ -17,10 +18,11 @@ where
 
     a_neighbours
         .symmetric_difference(&b_neighbours)
-        .cloned()
+        .copied()
         .collect()
 }
 
+#[allow(dead_code)]
 fn all_edges_connected_to_disjunt_neighbours<E>(
     graph: &NTupleGraph<E>,
     a: NodeIndex,
@@ -68,7 +70,8 @@ enum Variant {
 }
 
 // TODO: This should be revised, as it doesn't give the same results as the normal one
-fn run_x_losing_edges_optimised<E>(graph: &NTupleGraph<E>, variant: Variant) -> NTupleGraph<E>
+#[allow(dead_code)]
+fn run_x_losing_edges_optimised<E>(graph: &NTupleGraph<E>, variant: &Variant) -> NTupleGraph<E>
 where
     E: Default,
 {

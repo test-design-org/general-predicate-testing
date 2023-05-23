@@ -95,7 +95,7 @@ fn convert_condition_node(conditions_node: &ast::ConditionsNode) -> ir::Predicat
     }
 }
 
-fn traverse_body(body: &[IfNode], initial_conditions: Predicate) -> Vec<Predicate> {
+fn traverse_body(body: &[IfNode], initial_conditions: &Predicate) -> Vec<Predicate> {
     let body_conditions = body.iter().flat_map(traverse_if_node);
     body_conditions
         .map(|body_condition| ir::Predicate::Group {
@@ -113,10 +113,10 @@ fn traverse_if_node(if_node: &ast::IfNode) -> Vec<ir::Predicate> {
         None => vec![initial_conditions],
         Some(body) if body.is_empty() => vec![initial_conditions],
         // TODO: We need the initial conditions as well as the body.
-        Some(body) => traverse_body(body, initial_conditions), // TODO: the body of the if doesn't have to be negated onto the else ifs
+        Some(body) => traverse_body(body, &initial_conditions), // TODO: the body of the if doesn't have to be negated onto the else ifs
     };
 
-    for else_if_node in if_node.else_if.iter() {
+    for else_if_node in &if_node.else_if {
         let initial_conditions = convert_condition_node(&else_if_node.conditions);
         let previous_negated_plus_initial_conditions: Vec<Predicate> = predicates_so_far
             .iter()
@@ -131,7 +131,7 @@ fn traverse_if_node(if_node: &ast::IfNode) -> Vec<ir::Predicate> {
             [] => previous_negated_plus_initial_conditions,
             body => previous_negated_plus_initial_conditions
                 .iter()
-                .flat_map(|p| traverse_body(body, p.clone()))
+                .flat_map(|p| traverse_body(body, p))
                 .collect(),
         };
 
@@ -149,7 +149,7 @@ fn traverse_if_node(if_node: &ast::IfNode) -> Vec<ir::Predicate> {
             Some(ElseNode { body }) if body.is_empty() => previous_negated,
             Some(ElseNode { body }) => previous_negated
                 .iter()
-                .flat_map(|if_predicate| traverse_body(body, if_predicate.clone()))
+                .flat_map(|if_predicate| traverse_body(body, if_predicate))
                 .collect(),
         }
     };

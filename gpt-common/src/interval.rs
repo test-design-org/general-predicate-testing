@@ -21,6 +21,7 @@ pub enum Boundary {
 }
 
 impl Boundary {
+    #[must_use]
     pub const fn inverse(&self) -> Self {
         match self {
             Self::Open => Self::Closed,
@@ -82,7 +83,6 @@ impl Interval {
         Self::new(Boundary::Closed, lo, hi, Boundary::Closed)
     }
 
-    #[must_use]
     pub const fn new_closed_point(point: f32) -> Self {
         Self {
             lo_boundary: Boundary::Closed,
@@ -130,7 +130,7 @@ impl Interval {
     pub fn complement(&self) -> MultiInterval {
         if self.is_empty() {
             return MultiInterval {
-                intervals: vec![Interval {
+                intervals: vec![Self {
                     lo_boundary: Boundary::Open,
                     lo: f32::NEG_INFINITY,
                     hi: f32::INFINITY,
@@ -142,21 +142,21 @@ impl Interval {
         let mut new_intervals = Vec::new();
 
         if self.lo != f32::NEG_INFINITY {
-            new_intervals.push(Interval {
+            new_intervals.push(Self {
                 lo_boundary: Boundary::Open,
                 lo: f32::NEG_INFINITY,
                 hi: self.lo,
                 hi_boundary: self.lo_boundary.inverse(),
-            })
+            });
         }
 
         if self.hi != f32::INFINITY {
-            new_intervals.push(Interval {
+            new_intervals.push(Self {
                 lo_boundary: self.hi_boundary.inverse(),
                 lo: self.hi,
                 hi: f32::INFINITY,
                 hi_boundary: Boundary::Open,
-            })
+            });
         }
 
         MultiInterval {
@@ -227,13 +227,13 @@ impl fmt::Display for Interval {
             Boundary::Closed => "]",
         };
 
-        write!(f, "{}{}, {}{}", lo_boundary, lo, hi, hi_boundary)
+        write!(f, "{lo_boundary}{lo}, {hi}{hi_boundary}")
     }
 }
 
 impl fmt::Debug for Interval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -302,7 +302,6 @@ impl MultiInterval {
             .expect("Closed point creation should not cause any errors")
     }
 
-    #[must_use]
     fn highest_hi(&self) -> f32 {
         self.intervals
             .last()
@@ -310,7 +309,6 @@ impl MultiInterval {
             .hi
     }
 
-    #[must_use]
     fn lowest_lo(&self) -> f32 {
         self.intervals
             .first()
@@ -318,7 +316,6 @@ impl MultiInterval {
             .lo
     }
 
-    #[must_use]
     fn highest_boundary(&self) -> Boundary {
         self.intervals
             .last()
@@ -326,7 +323,6 @@ impl MultiInterval {
             .hi_boundary
     }
 
-    #[must_use]
     fn lowest_boundary(&self) -> Boundary {
         self.intervals
             .first()
@@ -342,6 +338,7 @@ impl MultiInterval {
         self.intervals.len() == 1 && self.intervals[0].is_single_point()
     }
 
+    #[must_use]
     pub fn complement(&self) -> Self {
         if self.intervals.is_empty() {
             return Self {
@@ -362,7 +359,7 @@ impl MultiInterval {
                 lo: f32::NEG_INFINITY,
                 hi: self.lowest_lo(),
                 hi_boundary: self.lowest_boundary().inverse(),
-            })
+            });
         }
 
         new_intervals.append(
@@ -388,7 +385,7 @@ impl MultiInterval {
                 lo: self.highest_hi(),
                 hi: f32::INFINITY,
                 hi_boundary: Boundary::Open,
-            })
+            });
         }
 
         Self {
@@ -401,7 +398,7 @@ impl MultiInterval {
         self.intervals.retain(|x| !x.is_empty());
 
         // Sort the intervals
-        self.intervals.sort_by(|a, b| a.lo_cmp(b));
+        self.intervals.sort_by(Interval::lo_cmp);
 
         // Merging overlapping intervals
         if self.intervals.len() >= 2 {
@@ -479,7 +476,7 @@ impl fmt::Display for MultiInterval {
         write!(f, "{}", self.intervals[0])?;
 
         for interval in self.intervals.iter().skip(1) {
-            write!(f, " {}", interval)?;
+            write!(f, " {interval}")?;
         }
 
         Ok(())
@@ -497,7 +494,7 @@ impl Serialize for MultiInterval {
 
 impl fmt::Debug for MultiInterval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 

@@ -8,7 +8,6 @@ pub enum Type {
 }
 
 impl Type {
-    #[must_use]
     pub const fn get_precision(&self) -> Option<f32> {
         match self {
             Self::Bool => None,
@@ -38,7 +37,6 @@ impl BinaryOp {
     /// Swaps the `BinaryOp` as if the left and right hand side were swapped.
     ///
     /// Example: x > 10 == 10 < x, y = 20 == 20 = y
-    #[must_use]
     pub const fn flip(&self) -> Self {
         match self {
             Self::LessThan => Self::GreaterThan,
