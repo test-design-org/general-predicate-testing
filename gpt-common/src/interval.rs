@@ -1,7 +1,4 @@
-use std::{
-    cmp::Ordering,
-    fmt::{self, format},
-};
+use std::{cmp::Ordering, fmt};
 
 use serde::{Serialize, Serializer};
 

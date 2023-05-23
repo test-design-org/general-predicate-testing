@@ -1,10 +1,10 @@
-use petgraph::{algo::connected_components, prelude::UnGraph};
+use petgraph::algo::connected_components;
 
 use super::{
     common::{clone_with_different_edge_type, join_nodes_on_edge},
     NTupleGraph,
 };
-use crate::{dto::NTupleSingleInterval, graph_reduction::create_graph_url};
+use crate::graph_reduction::create_graph_url;
 
 fn evaluate_edges_components_count(graph: &mut NTupleGraph<usize>) {
     let initial_component_count = connected_components(&*graph);

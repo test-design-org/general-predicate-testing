@@ -2,7 +2,7 @@ use nom::{
     branch::alt,
     combinator::{cut, map, value},
     error::context,
-    sequence::{terminated, tuple},
+    sequence::tuple,
 };
 
 use super::{

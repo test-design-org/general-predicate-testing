@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Display},
 };
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::interval::{Intersectable, Interval, MultiInterval};
 

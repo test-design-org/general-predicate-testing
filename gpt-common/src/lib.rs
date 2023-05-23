@@ -1,5 +1,5 @@
 use dto::NTupleSingleInterval;
-use ir::{Feature, Predicate};
+use ir::Feature;
 use nom::{error::convert_error, Err};
 use parser::parse_gpt_to_features;
 use prelude::{GPTError, Result};

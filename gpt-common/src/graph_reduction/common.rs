@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use petgraph::prelude::NodeIndex;
 
 use super::NTupleGraph;

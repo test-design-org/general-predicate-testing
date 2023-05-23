@@ -1,13 +1,11 @@
 use std::collections::HashSet;
 
-use itertools::Itertools;
 use petgraph::{
-    graph::EdgeReference,
     prelude::{EdgeIndex, NodeIndex},
     visit::EdgeRef,
 };
 
-use super::{common::clone_with_different_edge_type, create_graph_url, NTupleGraph};
+use super::{common::clone_with_different_edge_type, NTupleGraph};
 use crate::graph_reduction::common::join_nodes_on_edge;
 
 fn disjunct_neighbours<E>(graph: &NTupleGraph<E>, a: NodeIndex, b: NodeIndex) -> Vec<NodeIndex>

@@ -159,7 +159,7 @@ fn traverse_if_node(if_node: &ast::IfNode) -> Vec<ir::Predicate> {
     predicates_so_far
 }
 
-fn convert_variable<'a>(var_node: &'a ast::VarNode) -> ir::Variable {
+fn convert_variable(var_node: &ast::VarNode) -> ir::Variable {
     ir::Variable {
         var_name: var_node.var_name.to_owned(),
         var_type: var_node.var_type,

@@ -9,10 +9,9 @@ use crate::{
 };
 
 const fn convert_bool_dto(condition: &ir::BoolCondition) -> BoolDTO {
-    let expression = if condition.should_equal_to == true {
-        BoolExpression::IsTrue
-    } else {
-        BoolExpression::IsFalse
+    let expression = match condition.should_equal_to {
+        true => BoolExpression::IsTrue,
+        false => BoolExpression::IsFalse,
     };
     BoolDTO {
         expression,

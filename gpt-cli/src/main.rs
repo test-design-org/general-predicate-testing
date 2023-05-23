@@ -20,7 +20,6 @@ use gpt_common::{
         least_losing_nodes_reachable::run_least_losing_nodes_reachable,
         monke::run_monke,
     },
-    parser::parse_gpt_to_ir,
 };
 use itertools::Itertools;
 
