@@ -1,8 +1,9 @@
-use std::fmt::Debug;
 use std::{
     collections::{HashMap, HashSet},
-    fmt::Display,
+    fmt::{Debug, Display},
 };
+
+use serde::Serialize;
 
 use crate::interval::{Intersectable, Interval, MultiInterval};
 
@@ -35,7 +36,6 @@ pub enum Expression {
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct IntervalDTO {
-    pub expression: Expression,
     pub interval: MultiInterval,
     pub precision: f32,
     pub is_constant: bool,
@@ -52,7 +52,7 @@ pub struct NTupleInput {
     pub inputs: HashMap<String, Input>,
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Output<T>
 where
     T: Intersectable,
@@ -86,6 +86,22 @@ where
     }
 }
 
+impl<T> Serialize for Output<T>
+where
+    T: Intersectable + Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::MissingVariable => serializer.serialize_none(),
+            Self::Bool(bool) => serializer.serialize_bool(*bool),
+            Self::Interval(interval) => interval.serialize(serializer),
+        }
+    }
+}
+
 #[derive(PartialEq, Clone)]
 pub struct NTupleOutput {
     pub outputs: HashMap<String, Output<MultiInterval>>,
@@ -111,7 +127,10 @@ impl Intersectable for NTupleSingleInterval {
             return None;
         }
 
-        let var_names_in_both = HashSet::<&String>::from_iter(self.keys().chain(other.keys()));
+        let var_names_in_both = self
+            .keys()
+            .chain(other.keys())
+            .collect::<HashSet<&String>>();
 
         let intersected_outputs: Self = var_names_in_both.iter().filter_map(|var_name| {
             let var_name = (*var_name).clone();
@@ -134,8 +153,8 @@ impl Intersectable for NTupleSingleInterval {
 impl Display for NTupleOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{")?;
-        for (var_name, interval) in self.outputs.iter() {
-            write!(f, " {var_name}: {:?}", interval)?;
+        for (var_name, interval) in &self.outputs {
+            write!(f, " {var_name}: {interval:?}")?;
         }
         write!(f, " }}")?;
         Ok(())
@@ -144,7 +163,7 @@ impl Display for NTupleOutput {
 
 impl Debug for NTupleOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -159,32 +178,29 @@ pub(crate) mod tests {
 
     pub fn create_ntuple_input(inputs: Vec<(&str, Input)>) -> NTupleInput {
         NTupleInput {
-            inputs: HashMap::from_iter(
-                inputs
-                    .into_iter()
-                    .map(|(var_name, input)| (var_name.to_owned(), input)),
-            ),
+            inputs: inputs
+                .into_iter()
+                .map(|(var_name, input)| (var_name.to_owned(), input))
+                .collect::<HashMap<_, _>>(),
         }
     }
 
     pub fn create_ntuple_output(outputs: Vec<(&str, Output<MultiInterval>)>) -> NTupleOutput {
         NTupleOutput {
-            outputs: HashMap::from_iter(
-                outputs
-                    .into_iter()
-                    .map(|(var_name, output)| (var_name.to_owned(), output)),
-            ),
+            outputs: outputs
+                .into_iter()
+                .map(|(var_name, output)| (var_name.to_owned(), output))
+                .collect::<HashMap<_, _>>(),
         }
     }
 
     pub fn create_ntuple_single_interval(
         outputs: Vec<(&str, Output<Interval>)>,
     ) -> NTupleSingleInterval {
-        HashMap::from_iter(
-            outputs
-                .into_iter()
-                .map(|(var_name, output)| (var_name.to_owned(), output)),
-        )
+        outputs
+            .into_iter()
+            .map(|(var_name, output)| (var_name.to_owned(), output))
+            .collect::<HashMap<_, _>>()
     }
 
     #[rstest]

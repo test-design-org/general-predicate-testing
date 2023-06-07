@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use gpt_common::{
-    dto::{NTupleOutput, NTupleSingleInterval, Output},
-    interval::{Interval, MultiInterval},
+    dto::{NTupleSingleInterval, Output},
+    interval::Interval,
     test_value_generator::generate_test_value,
 };
 use yew::prelude::*;
@@ -18,9 +18,11 @@ fn sort_outputs_into_varible_columns(
         .collect()
 }
 
+type TestCaseCell = Option<Output<Interval>>;
+
 fn create_test_case_table(
     ntuples: &[NTupleSingleInterval],
-) -> (Vec<String>, Vec<Vec<Option<Output<Interval>>>>) {
+) -> (Vec<String>, Vec<Vec<TestCaseCell>>) {
     let mut variables: Vec<String> =
         HashSet::<String>::from_iter(ntuples.iter().flat_map(|ntuple| ntuple.keys()).cloned())
             .into_iter()

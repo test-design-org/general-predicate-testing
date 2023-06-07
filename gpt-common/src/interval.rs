@@ -1,5 +1,7 @@
 use std::{cmp::Ordering, fmt};
 
+use serde::{Serialize, Serializer};
+
 pub trait Intersectable {
     fn intersects_with(&self, other: &Self) -> bool;
 
@@ -19,6 +21,7 @@ pub enum Boundary {
 }
 
 impl Boundary {
+    #[must_use]
     pub const fn inverse(&self) -> Self {
         match self {
             Self::Open => Self::Closed,
@@ -80,7 +83,6 @@ impl Interval {
         Self::new(Boundary::Closed, lo, hi, Boundary::Closed)
     }
 
-    #[must_use]
     pub const fn new_closed_point(point: f32) -> Self {
         Self {
             lo_boundary: Boundary::Closed,
@@ -93,6 +95,12 @@ impl Interval {
     pub fn is_empty(&self) -> bool {
         self.lo == self.hi
             && (self.lo_boundary == Boundary::Open || self.hi_boundary == Boundary::Open)
+    }
+
+    pub fn is_single_point(&self) -> bool {
+        self.lo == self.hi
+            && self.lo_boundary == Boundary::Closed
+            && self.hi_boundary == Boundary::Closed
     }
 
     fn lo_cmp(&self, other: &Self) -> Ordering {
@@ -118,6 +126,43 @@ impl Interval {
             x => x,
         }
     }
+
+    pub fn complement(&self) -> MultiInterval {
+        if self.is_empty() {
+            return MultiInterval {
+                intervals: vec![Self {
+                    lo_boundary: Boundary::Open,
+                    lo: f32::NEG_INFINITY,
+                    hi: f32::INFINITY,
+                    hi_boundary: Boundary::Open,
+                }],
+            };
+        }
+
+        let mut new_intervals = Vec::new();
+
+        if self.lo != f32::NEG_INFINITY {
+            new_intervals.push(Self {
+                lo_boundary: Boundary::Open,
+                lo: f32::NEG_INFINITY,
+                hi: self.lo,
+                hi_boundary: self.lo_boundary.inverse(),
+            });
+        }
+
+        if self.hi != f32::INFINITY {
+            new_intervals.push(Self {
+                lo_boundary: self.hi_boundary.inverse(),
+                lo: self.hi,
+                hi: f32::INFINITY,
+                hi_boundary: Boundary::Open,
+            });
+        }
+
+        MultiInterval {
+            intervals: new_intervals,
+        }
+    }
 }
 
 impl Intersectable for Interval {
@@ -136,8 +181,18 @@ impl Intersectable for Interval {
             return None;
         }
 
-        let bigger_lo = if self.lo > other.lo { self } else { other };
-        let smaller_hi = if self.hi < other.hi { self } else { other };
+        // let bigger_lo = if self.lo > other.lo { self } else { other };
+        // let smaller_hi = if self.hi < other.hi { self } else { other };
+        let bigger_lo = if self.lo_cmp(other) == Ordering::Greater {
+            self
+        } else {
+            other
+        };
+        let smaller_hi = if self.hi_cmp(other) == Ordering::Less {
+            self
+        } else {
+            other
+        };
 
         Some(Self {
             lo_boundary: bigger_lo.lo_boundary,
@@ -148,22 +203,50 @@ impl Intersectable for Interval {
     }
 }
 
-impl fmt::Debug for Interval {
+impl fmt::Display for Interval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let lo_boundary = match self.lo_boundary {
             Boundary::Open => "(",
             Boundary::Closed => "[",
         };
+
+        let lo = if self.lo == f32::NEG_INFINITY {
+            "-Inf".to_owned()
+        } else {
+            self.lo.to_string()
+        };
+
+        let hi = if self.hi == f32::INFINITY {
+            "Inf".to_owned()
+        } else {
+            self.hi.to_string()
+        };
+
         let hi_boundary = match self.hi_boundary {
             Boundary::Open => ")",
             Boundary::Closed => "]",
         };
 
-        write!(f, "{}{}, {}{}", lo_boundary, self.lo, self.hi, hi_boundary)
+        write!(f, "{lo_boundary}{lo}, {hi}{hi_boundary}")
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+impl fmt::Debug for Interval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl Serialize for Interval {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(self)
+    }
+}
+
+#[derive(PartialEq, Clone)]
 pub struct MultiInterval {
     /// `intervals` is always sorted in ascending order and there are no overlapping intervals
     pub(crate) intervals: Vec<Interval>,
@@ -219,7 +302,6 @@ impl MultiInterval {
             .expect("Closed point creation should not cause any errors")
     }
 
-    #[must_use]
     fn highest_hi(&self) -> f32 {
         self.intervals
             .last()
@@ -227,7 +309,6 @@ impl MultiInterval {
             .hi
     }
 
-    #[must_use]
     fn lowest_lo(&self) -> f32 {
         self.intervals
             .first()
@@ -235,7 +316,6 @@ impl MultiInterval {
             .lo
     }
 
-    #[must_use]
     fn highest_boundary(&self) -> Boundary {
         self.intervals
             .last()
@@ -243,7 +323,6 @@ impl MultiInterval {
             .hi_boundary
     }
 
-    #[must_use]
     fn lowest_boundary(&self) -> Boundary {
         self.intervals
             .first()
@@ -255,7 +334,12 @@ impl MultiInterval {
         self.intervals.is_empty()
     }
 
-    pub fn inverse(&self) -> Self {
+    pub fn is_single_point(&self) -> bool {
+        self.intervals.len() == 1 && self.intervals[0].is_single_point()
+    }
+
+    #[must_use]
+    pub fn complement(&self) -> Self {
         if self.intervals.is_empty() {
             return Self {
                 intervals: vec![Interval {
@@ -275,7 +359,7 @@ impl MultiInterval {
                 lo: f32::NEG_INFINITY,
                 hi: self.lowest_lo(),
                 hi_boundary: self.lowest_boundary().inverse(),
-            })
+            });
         }
 
         new_intervals.append(
@@ -301,7 +385,7 @@ impl MultiInterval {
                 lo: self.highest_hi(),
                 hi: f32::INFINITY,
                 hi_boundary: Boundary::Open,
-            })
+            });
         }
 
         Self {
@@ -314,7 +398,7 @@ impl MultiInterval {
         self.intervals.retain(|x| !x.is_empty());
 
         // Sort the intervals
-        self.intervals.sort_by(|a, b| a.lo_cmp(b));
+        self.intervals.sort_by(Interval::lo_cmp);
 
         // Merging overlapping intervals
         if self.intervals.len() >= 2 {
@@ -384,6 +468,36 @@ impl Intersectable for MultiInterval {
     }
 }
 
+impl fmt::Display for MultiInterval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_empty() {
+            return Ok(());
+        }
+        write!(f, "{}", self.intervals[0])?;
+
+        for interval in self.intervals.iter().skip(1) {
+            write!(f, " {interval}")?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Serialize for MultiInterval {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(self)
+    }
+}
+
+impl fmt::Debug for MultiInterval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
 impl Unionable<Self, Self> for MultiInterval {
     fn union(&self, other: &Self) -> Self {
         let mut intervals = self.intervals.clone();
@@ -398,12 +512,7 @@ impl Unionable<Self, Self> for MultiInterval {
 
 impl Unionable<Self, MultiInterval> for Interval {
     fn union(&self, other: &Self) -> MultiInterval {
-        let mut multi_interval = MultiInterval {
-            intervals: vec![*self, *other],
-        };
-        multi_interval.clean();
-
-        multi_interval
+        MultiInterval::from_intervals(vec![*self, *other])
     }
 }
 
@@ -414,10 +523,10 @@ pub(crate) mod test {
     use nom::{combinator::complete, multi::many0};
     use pretty_assertions::assert_eq;
     use rstest::rstest;
+    use Ordering::{Equal, Greater, Less};
 
     use super::{Intersectable, Interval, MultiInterval};
     use crate::parser::interval;
-    use Ordering::{Equal, Greater, Less};
 
     pub fn int(input: &str) -> Interval {
         let (_, x) = interval(input).unwrap();
@@ -462,7 +571,7 @@ pub(crate) mod test {
         assert_eq!(
             interval.contains_point(point),
             expected,
-            "Interval.contains_point failed: {interval:?}.contains_point({point:?}) should be {expected:?}",
+            "Interval.contains_point failed: {interval}.contains_point({point}) should be {expected}",
         );
     }
 
@@ -507,7 +616,18 @@ pub(crate) mod test {
     #[case("[0, 10)", "[20, 30]", false)]
     #[case("[0, 10]", "(20, 30]", false)]
     #[case("[0, 10)", "(20, 30]", false)]
+    // self.lo == other.lo
+    #[case("[0, 10]", "[0, 20]", true)]
+    #[case("[0, 10]", "(0, 20]", true)]
+    #[case("(0, 10]", "[0, 20]", true)]
+    #[case("(0, 10]", "(0, 20]", true)]
+    // self.hi == other.hi
+    #[case("[10, 20]", "[0, 20]", true)]
+    #[case("[10, 20)", "[0, 20]", true)]
+    #[case("[10, 20]", "[0, 20)", true)]
+    #[case("[10, 20)", "[0, 20)", true)]
     // TODO: Inf, -Inf
+    // TODO: What about empty intervals like (0,0) (0,0)?
     fn test_interval_intersects_with(
         #[case] this: Interval,
         #[case] that: Interval,
@@ -516,7 +636,7 @@ pub(crate) mod test {
         assert_eq!(
             this.intersects_with(&that),
             expected,
-            "Interval.intersects_with failed: {this:?}.intersects_with({that:?}) should be {expected:?}",
+            "Interval.intersects_with failed: {this}.intersects_with({that}) should be {expected}",
         );
     }
 
@@ -561,7 +681,18 @@ pub(crate) mod test {
     #[case("[0, 10)", "[20, 30]", None)]
     #[case("[0, 10]", "(20, 30]", None)]
     #[case("[0, 10)", "(20, 30]", None)]
+    // self.lo == other.lo
+    #[case("[0, 10]", "[0, 20]", Some("[0, 10]"))]
+    #[case("[0, 10]", "(0, 20]", Some("(0, 10]"))]
+    #[case("(0, 10]", "[0, 20]", Some("(0, 10]"))]
+    #[case("(0, 10]", "(0, 20]", Some("(0, 10]"))]
+    // self.hi == other.hi
+    #[case("[10, 20]", "[0, 20]", Some("[10, 20]"))]
+    #[case("[10, 20)", "[0, 20]", Some("[10, 20)"))]
+    #[case("[10, 20]", "[0, 20)", Some("[10, 20)"))]
+    #[case("[10, 20)", "[0, 20)", Some("[10, 20)"))]
     // TODO: Inf, -Inf
+    // TODO: What about empty intervals like (0,0) (0,0)?
     fn test_interval_intersect(
         #[case] this: Interval,
         #[case] that: Interval,
@@ -570,7 +701,7 @@ pub(crate) mod test {
         assert_eq!(
             this.intersect(&that),
             expected.map(int),
-            "Interval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
+            "Interval.intersect failed: {this}.intersect({that}) should be {expected:?}",
         );
     }
 
@@ -584,7 +715,7 @@ pub(crate) mod test {
         assert_eq!(
             interval.is_empty(),
             expected,
-            "Interval.isEmpty failed: {interval:?}.is_empty() should be {expected}"
+            "Interval.isEmpty failed: {interval}.is_empty() should be {expected}"
         );
     }
 
@@ -613,7 +744,7 @@ pub(crate) mod test {
         assert_eq!(
             left.lo_cmp(&right),
             expected,
-            "Interval.lo_cmp failed: {left:?}.lo_cmp({right:?}) should be {expected:?}"
+            "Interval.lo_cmp failed: {left}.lo_cmp({right}) should be {expected:?}"
         );
     }
 
@@ -642,7 +773,7 @@ pub(crate) mod test {
         assert_eq!(
             left.hi_cmp(&right),
             expected,
-            "Interval.hi_cmp failed: {left:?}.hi_cmp({right:?}) should be {expected:?}"
+            "Interval.hi_cmp failed: {left}.hi_cmp({right}) should be {expected:?}"
         );
     }
 
@@ -675,7 +806,7 @@ pub(crate) mod test {
         assert_eq!(
             this.intersect(&that),
             expected.map(multiint),
-            "MultiInterval.intersect failed: {this:?}.intersect({that:?}) should be {expected:?}",
+            "MultiInterval.intersect failed: {this}.intersect({that}) should be {expected:?}",
         );
     }
 
@@ -719,9 +850,9 @@ pub(crate) mod test {
         #[case] expected: MultiInterval,
     ) {
         assert_eq!(
-            interval.inverse(),
+            interval.complement(),
             expected,
-            "MultiInterval.invert failed: {interval:?}.inverse() should be {expected:?}",
+            "MultiInterval.invert failed: {interval}.inverse() should be {expected}",
         );
     }
 
@@ -730,7 +861,7 @@ pub(crate) mod test {
         let input1 = multiint("[-42, 3) (3, 67) (100, 101) [205, 607] (700, Inf)");
 
         assert_eq!(
-            input1.inverse().inverse(),
+            input1.complement().complement(),
             input1,
             "The inverse of an inverse should be the original",
         );
@@ -740,11 +871,11 @@ pub(crate) mod test {
             "Intersecting something with (-Inf, Inf) should be the original"
         );
         assert!(
-            !input1.intersects_with(&input1.inverse()),
+            !input1.intersects_with(&input1.complement()),
             "An interval can't be intersected with its inverse"
         );
         assert_eq!(
-            input1.intersect(&input1.inverse()),
+            input1.intersect(&input1.complement()),
             None,
             "An interval can't be intersected with its inverse"
         );

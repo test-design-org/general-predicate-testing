@@ -1,13 +1,9 @@
-use petgraph::{prelude::NodeIndex, prelude::UnGraph, visit::Bfs};
-
-use crate::{
-    dto::{NTupleInput, NTupleOutput, NTupleSingleInterval},
-    graph_reduction::{common::join_nodes_on_edge, create_graph_url},
-};
+use petgraph::{prelude::NodeIndex, visit::Bfs};
 
 use super::{common::clone_with_different_edge_type, NTupleGraph};
+use crate::graph_reduction::{common::join_nodes_on_edge, create_graph_url};
 
-fn nodes_reachable(graph: &UnGraph<NTupleSingleInterval, usize>, start_node: NodeIndex) -> usize {
+fn nodes_reachable(graph: &NTupleGraph<usize>, start_node: NodeIndex) -> usize {
     let mut bfs = Bfs::new(graph, start_node);
     let mut count = 0;
 
@@ -18,7 +14,7 @@ fn nodes_reachable(graph: &UnGraph<NTupleSingleInterval, usize>, start_node: Nod
     count
 }
 
-fn evaluate_edges_edges_reachable_count(graph: &mut UnGraph<NTupleSingleInterval, usize>) {
+fn evaluate_edges_nodes_reachable_count(graph: &mut NTupleGraph<usize>) {
     for edge_index in graph.edge_indices() {
         let mut working_graph = graph.clone();
         let (a, b) = working_graph
@@ -32,17 +28,21 @@ fn evaluate_edges_edges_reachable_count(graph: &mut UnGraph<NTupleSingleInterval
         graph[edge_index] = initially_reachable - reachable_after_the_join;
     }
 
+    #[cfg(debug_assertions)]
     log::debug!(
         "Partial data, least losing edges reachable graph: \n\n{}",
         create_graph_url(&*graph)
     );
 }
 
-pub fn run_least_losing_edges_reachable(graph: &NTupleGraph) -> NTupleGraph {
-    let mut graph: UnGraph<NTupleSingleInterval, usize> = clone_with_different_edge_type(graph);
+pub fn run_least_losing_nodes_reachable<E>(graph: &NTupleGraph<E>) -> NTupleGraph<E>
+where
+    E: Default,
+{
+    let mut graph = clone_with_different_edge_type::<E, usize>(graph);
 
     while graph.edge_count() > 0 {
-        evaluate_edges_edges_reachable_count(&mut graph);
+        evaluate_edges_nodes_reachable_count(&mut graph);
 
         let min_index = graph
             .edge_indices()

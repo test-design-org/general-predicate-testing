@@ -1,11 +1,7 @@
 use gpt_common::{
-    dto::{NTupleOutput, NTupleSingleInterval},
+    dto::NTupleSingleInterval,
     generate_tests_for_gpt_input,
-    graph_reduction::{
-        create_graph, least_losing_nodes_reachable::run_least_losing_edges_reachable,
-        MONKE::run_MONKE,
-    },
-    graph_reduction::{create_graph_url, least_losing_components::run_least_losing_components},
+    graph_reduction::{create_graph, create_graph_url, monke::run_monke},
 };
 use yew::prelude::*;
 
@@ -22,20 +18,20 @@ pub fn manual_tester() -> Html {
     let is_help_hidden = use_state(|| true);
     let input = use_state(|| {
         r#"
-    [
-        var heat: int
-        var is_contaminated: bool
-        var copper: num
+[
+  var heat: int
+  var is_contaminated: bool
+  var copper: num
 
-        if(heat in [2600,2650] && is_contaminated = false && copper = 8.8)
-    ]
-    [
-        var is_copper_melted: bool
-        var tin: num
-        var is_contaminated: bool
+  if(heat in [2600,2650] && is_contaminated == false && copper == 8.8)
+]
+[
+  var is_copper_melted: bool
+  var tin: num
+  var is_contaminated: bool
 
-        if(is_contaminated = false && is_copper_melted = true && tin = 2.2)
-    ]
+  if(is_contaminated == false && is_copper_melted == true && tin == 2.2)
+]
     "#
         .to_owned()
     });
@@ -54,18 +50,18 @@ pub fn manual_tester() -> Html {
                     let graph = create_graph(&test_cases);
 
                     log::info!("Original count: {}", graph.node_count());
-                    let reduced_graph = run_MONKE(&graph);
+                    let reduced_graph = run_monke(&graph);
                     log::info!("MONKE count: {}", reduced_graph.node_count());
-                    let reduced_graph = run_least_losing_components(&graph);
-                    log::info!(
-                        "Least Losing Components count: {}",
-                        reduced_graph.node_count()
-                    );
-                    let reduced_graph = run_least_losing_edges_reachable(&graph);
-                    log::info!(
-                        "Least Losing Edges Reachable count: {}",
-                        reduced_graph.node_count()
-                    );
+                    // let reduced_graph = run_least_losing_components(&graph);
+                    // log::info!(
+                    //     "Least Losing Components count: {}",
+                    //     reduced_graph.node_count()
+                    // );
+                    // let reduced_graph = run_least_losing_edges_reachable(&graph);
+                    // log::info!(
+                    //     "Least Losing Edges Reachable count: {}",
+                    //     reduced_graph.node_count()
+                    // );
 
                     log::debug!("{}", create_graph_url(&graph));
                     log::debug!("{}", create_graph_url(&reduced_graph));
@@ -73,10 +69,11 @@ pub fn manual_tester() -> Html {
                     let reduced_test_cases = reduced_graph
                         .node_weights()
                         .cloned()
+                        .map(|x| *x)
                         .collect::<Vec<NTupleSingleInterval>>();
 
-                    // generated_state.set(Some(Ok(reduced_test_cases)));
-                    generated_state.set(Some(Ok(test_cases)));
+                    generated_state.set(Some(Ok(reduced_test_cases)));
+                    // generated_state.set(Some(Ok(test_cases)));
                 }
                 Err(err) => {
                     log::error!("Error: {}", err);

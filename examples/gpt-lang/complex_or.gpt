@@ -1,0 +1,11 @@
+var x: bool
+var y: bool
+var z: bool
+
+if(
+    (x == true || y == true) &&
+    x == true && y == true &&
+    (y == true || z == true) &&
+    (z == true || (x == true && y == true)) &&
+    z == true
+)

@@ -1,0 +1,81 @@
+var x: bool
+var y: bool
+var z: bool
+
+if(x == true || y == true || z == true)
+
+/*
+This can be written in the following ways:
+if(x || y || z)
+if(x || z || y)
+if(y || x || z)
+if(y || z || x)
+if(z || x || y)
+if(z || y || x)
+
+These should have the following conjunctive forms
+if(x || y || z)
+    if(x)
+    if(!x && y)
+    if(!x && !y && z)
+if(x || z || y)
+    if(x)
+    if(!x && z)
+    if(!x && !z && y)
+if(y || x || z)
+    if(y)
+    if(!y && x)
+    if(!y && !x && z)
+if(y || z || x)
+    if(y)
+    if(!y && z)
+    if(!y && !z && x)
+if(z || x || y)
+    if(z)
+    if(!z && x)
+    if(!z && !x && y)
+if(z || y || x)
+    if(z)
+    if(!z && y)
+    if(!z && !y && x)
+
+We can reduce duplicates and get the following:
+if(x || y || z)
+    if(x)
+    if(!x && y)
+    if(!x && !y && z)
+if(x || z || y)
+    if(x) -- duplicate
+    if(!x && z)
+    if(!x && !z && y)
+if(y || x || z)
+    if(y)
+    if(!y && x)
+    if(!y && !x && z) -- duplicate
+if(y || z || x)
+    if(y) -- duplicate
+    if(!y && z)
+    if(!y && !z && x)
+if(z || x || y)
+    if(z)
+    if(!z && x)
+    if(!z && !x && y) -- duplicate
+if(z || y || x)
+    if(z) -- duplicate
+    if(!z && y)
+    if(!z && !y && x) -- duplicate
+
+
+    if(x)
+    if(!x && y)
+    if(!x && !y && z)
+    if(!x && z)
+    if(!x && !z && y)
+    if(y)
+    if(!y && x) -> this is not generated
+    if(!y && z)
+    if(!y && !z && x)
+    if(z)
+    if(!z && x) -> this is not generated
+    if(!z && y)
+*/

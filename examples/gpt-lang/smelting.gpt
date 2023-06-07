@@ -1,0 +1,13 @@
+[
+    var heat: int
+    var is_contaminated: bool
+    var copper: num
+
+    if(heat in [2600,2650] && is_contaminated == false && copper == 8.8)
+]
+[
+    var is_copper_melted: bool
+    var tin: num
+    var is_contaminated: bool
+    if(is_contaminated == false && is_copper_melted == true && tin == 2.2)
+]

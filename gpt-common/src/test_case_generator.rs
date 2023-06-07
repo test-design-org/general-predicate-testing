@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 
-use itertools::Itertools;
-
-use crate::bva::Bva;
-use crate::dto::{BoolDTO, BoolExpression, NTupleOutput, NTupleSingleInterval, Output};
-use crate::interval::{Interval, MultiInterval};
-use crate::util::UniquesVec;
-
 use crate::{
-    dto::{Input, IntervalDTO, NTupleInput},
-    interval::IntervalError,
+    bva::Bva,
+    dto::{
+        BoolDTO, BoolExpression, Input, IntervalDTO, NTupleInput, NTupleOutput,
+        NTupleSingleInterval, Output,
+    },
+    interval::{IntervalError, MultiInterval},
+    util::UniquesVec,
 };
 
 pub fn generate_test_cases_for_multiple_features(
@@ -45,8 +43,8 @@ fn generate_test_cases_for_inputs(inputs: &NTupleInput) -> Vec<NTupleSingleInter
         .collect()
 }
 
-/// Creates the cartesian product of all multiintervals in the NTuple.
-/// If a multiinterval would have multiple intervals, it creates an NTuple with all the possible single interval combinations.
+/// Creates the cartesian product of all multiintervals in the `NTuple`.
+/// If a multiinterval would have multiple intervals, it creates an `NTuple` with all the possible single interval combinations.
 fn ntuple_multi_cartesian_product(ntuple: &NTupleOutput) -> Vec<NTupleSingleInterval> {
     if ntuple.outputs.iter().any(|(_, output)| match output {
         Output::MissingVariable => false,
@@ -63,7 +61,7 @@ fn ntuple_multi_cartesian_product(ntuple: &NTupleOutput) -> Vec<NTupleSingleInte
         .iter()
         .map(|(var_name, output)| {
             (
-                var_name.to_owned(),
+                var_name.clone(),
                 match output {
                     Output::MissingVariable => Output::MissingVariable,
                     Output::Bool(x) => Output::Bool(*x),
@@ -75,7 +73,7 @@ fn ntuple_multi_cartesian_product(ntuple: &NTupleOutput) -> Vec<NTupleSingleInte
 
     res.push(first);
 
-    for (var_name, output) in ntuple.outputs.iter()
+    for (var_name, output) in &ntuple.outputs
     // .sorted_unstable_by_key(|(var_name, _)| var_name.to_owned())
     {
         let current = res.clone();
@@ -85,7 +83,7 @@ fn ntuple_multi_cartesian_product(ntuple: &NTupleOutput) -> Vec<NTupleSingleInte
             Output::Interval(interval) => {
                 let mut new = Vec::new();
                 for interval in interval.intervals.iter().skip(1) {
-                    for x in current.iter() {
+                    for x in &current {
                         let mut x = x.clone();
                         x.insert(var_name.clone(), Output::Interval(*interval));
                         new.push(x);
@@ -134,7 +132,7 @@ fn calc_in_on_inin(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
         }
     });
 
-    let ons = input_to_output(ntuple, |interval, precision| interval.on(precision));
+    let ons = input_to_output(ntuple, Bva::on);
 
     let inins = input_to_output(ntuple, |interval, precision| {
         match interval.inin(precision) {
@@ -175,7 +173,7 @@ fn off_out(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
     let mut output: Vec<NTupleOutput> = Vec::new();
     let base = baseline(ntuple);
 
-    for (i, input) in ntuple.inputs.iter() {
+    for (i, input) in &ntuple.inputs {
         match input {
             Input::Bool(BoolDTO { is_constant, .. }) if *is_constant => continue,
             Input::Interval(IntervalDTO { is_constant, .. }) if *is_constant => continue,
@@ -188,17 +186,30 @@ fn off_out(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
                     let mut base_bool_true = base.clone();
                     base_bool_true
                         .outputs
-                        .insert(i.to_owned(), Output::Bool(false));
+                        .insert(i.clone(), Output::Bool(false));
                     output.push(base_bool_true);
                 }
                 BoolExpression::IsFalse => {
                     let mut base_bool_false = base.clone();
                     base_bool_false
                         .outputs
-                        .insert(i.to_owned(), Output::Bool(true));
+                        .insert(i.clone(), Output::Bool(true));
                     output.push(base_bool_false);
                 }
             },
+            // Generate OFF+OUT combo if the interval is a single point
+            Input::Interval(IntervalDTO {
+                interval,
+                precision,
+                ..
+            }) if interval.is_single_point() => {
+                let mut base_off_out = base.clone();
+                base_off_out
+                    .outputs
+                    .insert(i.clone(), Output::Interval(interval.off_out(*precision)));
+
+                output.push(base_off_out);
+            }
             Input::Interval(IntervalDTO {
                 interval,
                 precision,
@@ -207,12 +218,12 @@ fn off_out(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
                 let mut base_off = base.clone();
                 base_off
                     .outputs
-                    .insert(i.to_owned(), Output::Interval(interval.off(*precision)));
+                    .insert(i.clone(), Output::Interval(interval.off(*precision)));
 
                 let mut base_out = base.clone();
                 base_out
                     .outputs
-                    .insert(i.to_owned(), Output::Interval(interval.out(*precision)));
+                    .insert(i.clone(), Output::Interval(interval.out(*precision)));
 
                 output.push(base_off);
                 output.push(base_out);
@@ -225,22 +236,22 @@ fn off_out(ntuple: &NTupleInput) -> Vec<NTupleOutput> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use std::collections::HashMap;
 
-    use crate::dto::tests::create_ntuple_single_interval;
-    use crate::dto::tests::{create_ntuple_input, create_ntuple_output};
-    use crate::dto::NTupleSingleInterval;
-    use crate::interval::test::{int, multiint};
-    use crate::interval::{Interval, MultiInterval};
-    use crate::{
-        dto::{BoolDTO, BoolExpression, Expression, Input, IntervalDTO, Output},
-        interval::Boundary,
-    };
-
+    use pretty_assertions::assert_eq;
     use Boundary::Open;
 
     use super::{generate_test_cases_for_inputs, ntuple_multi_cartesian_product};
+    use crate::{
+        dto::{
+            tests::{create_ntuple_input, create_ntuple_output, create_ntuple_single_interval},
+            BoolDTO, BoolExpression, Input, IntervalDTO, NTupleSingleInterval, Output,
+        },
+        interval::{
+            test::{int, multiint},
+            Boundary, Interval, MultiInterval,
+        },
+    };
 
     #[test]
     fn test_all_possible_combinations() {
@@ -390,7 +401,7 @@ mod tests {
         //         print!(
         //             "{} ",
         //             match v {
-        //                 Output::Interval(i) => i.lo.to_string(),
+        //                 Output::Interval(i) => format!("{:?}", i),
         //                 Output::Bool(b) => b.to_string(),
         //                 Output::MissingVariable => "*".to_owned(),
         //             }
@@ -435,7 +446,6 @@ mod tests {
             (
                 "y",
                 Input::Interval(IntervalDTO {
-                    expression: Expression::LessThan,
                     interval: MultiInterval::new(Open, f32::NEG_INFINITY, 50.0, Open).unwrap(),
                     precision: 0.01,
                     is_constant: false,

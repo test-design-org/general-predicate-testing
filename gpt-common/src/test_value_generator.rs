@@ -1,7 +1,4 @@
-use crate::{
-    dto::Output,
-    interval::{self, Interval, MultiInterval},
-};
+use crate::{dto::Output, interval::Interval};
 
 fn test_value_for_interval(interval: &Interval) -> Option<f32> {
     if interval.is_empty() {
@@ -20,16 +17,13 @@ fn test_value_for_interval(interval: &Interval) -> Option<f32> {
 pub fn generate_test_value(output: &Output<Interval>, show_interval_values: bool) -> String {
     match output {
         Output::MissingVariable => "*".to_owned(),
-        Output::Bool(bool_val) => {
-            if *bool_val == true {
-                "true".to_owned()
-            } else {
-                "false".to_owned()
-            }
-        }
+        Output::Bool(bool_val) => match *bool_val {
+            true => "true".to_owned(),
+            false => "false".to_owned(),
+        },
         Output::Interval(interval) => {
             if show_interval_values {
-                format!("{:?}", interval)
+                format!("{interval:?}")
             } else {
                 format!(
                     "{:?}",

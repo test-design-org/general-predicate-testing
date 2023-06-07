@@ -8,7 +8,6 @@ pub enum Type {
 }
 
 impl Type {
-    #[must_use]
     pub const fn get_precision(&self) -> Option<f32> {
         match self {
             Self::Bool => None,
@@ -38,7 +37,6 @@ impl BinaryOp {
     /// Swaps the `BinaryOp` as if the left and right hand side were swapped.
     ///
     /// Example: x > 10 == 10 < x, y = 20 == 20 = y
-    #[must_use]
     pub const fn flip(&self) -> Self {
         match self {
             Self::LessThan => Self::GreaterThan,
@@ -51,19 +49,19 @@ impl BinaryOp {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum IntervalOp {
     In,
     NotIn,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BoolOp {
     And,
-    // Or,
+    Or,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ConstantPosition {
     LeftHandSide,
     RightHandSide,
@@ -113,14 +111,14 @@ pub struct VarNode<'a> {
 pub struct IfNode<'a> {
     pub conditions: ConditionsNode<'a>,
     pub body: Option<Vec<IfNode<'a>>>,
-    pub else_if: Option<Vec<ElseIfNode<'a>>>,
+    pub else_if: Vec<ElseIfNode<'a>>,
     pub else_node: Option<ElseNode<'a>>,
 }
 
 #[derive(PartialEq, Debug)]
 pub struct ElseIfNode<'a> {
     pub conditions: ConditionsNode<'a>,
-    pub body: Option<Vec<IfNode<'a>>>,
+    pub body: Vec<IfNode<'a>>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -129,8 +127,14 @@ pub struct ElseNode<'a> {
 }
 
 #[derive(PartialEq, Debug)]
-pub struct ConditionsNode<'a> {
-    pub conditions: Vec<Condition<'a>>,
+pub enum ConditionsNode<'a> {
+    Negated(Box<ConditionsNode<'a>>),
+    Expression(Condition<'a>),
+    Group {
+        operator: BoolOp,
+        left: Box<ConditionsNode<'a>>,
+        right: Box<ConditionsNode<'a>>,
+    },
 }
 
 #[derive(PartialEq, Debug)]
