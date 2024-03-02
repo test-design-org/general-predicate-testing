@@ -6,8 +6,8 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'My Site',
-  tagline: 'Dinosaurs are cool',
+  title: 'General Predicate Testing',
+  tagline: 'General Predicate Testing is cool',
   url: 'https://your-docusaurus-test-site.com',
   baseUrl: '/',
   onBrokenLinks: 'throw',
@@ -34,17 +34,15 @@ const config = {
       ({
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
-          // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+            'https://github.com/test-design-org/general-predicate-testing',
         },
         blog: {
           showReadingTime: true,
-          // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+            'https://github.com/test-design-org/general-predicate-testing',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -57,7 +55,7 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: 'My Site',
+        title: 'GPT',
         logo: {
           alt: 'My Site Logo',
           src: 'img/logo.svg',
@@ -87,22 +85,18 @@ const config = {
                 label: 'Tutorial',
                 to: '/docs/intro',
               },
+              {
+                label: 'Documentation',
+                to: '/docs/gpt-basics',
+              },
             ],
           },
           {
             title: 'Community',
             items: [
               {
-                label: 'Stack Overflow',
-                href: 'https://stackoverflow.com/questions/tagged/docusaurus',
-              },
-              {
-                label: 'Discord',
-                href: 'https://discordapp.com/invite/docusaurus',
-              },
-              {
-                label: 'Twitter',
-                href: 'https://twitter.com/docusaurus',
+                label: 'Blog',
+                to: '/blog',
               },
             ],
           },
@@ -110,17 +104,17 @@ const config = {
             title: 'More',
             items: [
               {
-                label: 'Blog',
-                to: '/blog',
+                label: 'GitHub',
+                href: 'https://github.com/test-design-org/general-predicate-testing',
               },
               {
-                label: 'GitHub',
-                href: 'https://github.com/facebook/docusaurus',
+                label: 'Test-design.org',
+                href: 'https://test-design.org/',
               },
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+        copyright: `Copyright © ${new Date().getFullYear()} General Predicate Testing, Inc. Built with Docusaurus.`,
       },
       prism: {
         theme: lightCodeTheme,
